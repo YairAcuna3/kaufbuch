@@ -1,11 +1,16 @@
-import { Pool, neonConfig } from "@neondatabase/serverless";
 import { PrismaNeon } from "@prisma/adapter-neon";
 import { PrismaClient } from "../generated/prisma/client";
+import { neonConfig } from "@neondatabase/serverless";
 
-// Configurar WebSocket solo en entorno Node.js (no en edge runtime)
-if (typeof WebSocket === "undefined") {
-  const ws = require("ws");
-  neonConfig.webSocketConstructor = ws;
+// Configurar WebSocket para desarrollo local
+// En Vercel/producción, usa el WebSocket nativo del runtime
+if (typeof window === "undefined" && process.env.NODE_ENV !== "production") {
+  try {
+    const ws = require("ws");
+    neonConfig.webSocketConstructor = ws;
+  } catch (e) {
+    // ws no disponible, usar WebSocket nativo
+  }
 }
 
 const globalForPrisma = globalThis as unknown as { prisma: PrismaClient };
