@@ -23,8 +23,17 @@ export function Navbar() {
             <div className="max-w-7xl mx-auto px-4">
                 <div className="flex items-center justify-between h-16">
                     <div className="flex items-center gap-8">
-                        <Link href="/records" className="text-primary font-bold text-xl">
-                            Kaufbuch
+                        <Link href="/records" className="flex items-center gap-2">
+                            <Image
+                                src="/logo.png"
+                                alt="Kaufbuch"
+                                width={32}
+                                height={32}
+                                className="w-8 h-8 object-contain"
+                            />
+                            <span className="text-primary font-bold text-xl hidden sm:inline">
+                                Kaufbuch
+                            </span>
                         </Link>
                         <div className="hidden md:flex items-center gap-1">
                             {navItems.map((item) => (

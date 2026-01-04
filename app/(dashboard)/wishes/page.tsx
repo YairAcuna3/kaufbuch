@@ -338,24 +338,26 @@ export default function WishesPage() {
 
 function WishCard({ wish, onEdit, onDelete }: { wish: Wish; onEdit: (w: Wish) => void; onDelete: (id: string) => void }) {
     return (
-        <Card className="flex items-center justify-between cursor-grab active:cursor-grabbing">
-            <div className="flex-1">
-                <div className="flex items-center gap-2">
-                    <span className="text-muted">⋮⋮</span>
-                    <h3 className="font-medium">{wish.name}</h3>
+        <Card className="cursor-grab active:cursor-grabbing">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                        <span className="text-muted">⋮⋮</span>
+                        <h3 className="font-medium truncate">{wish.name}</h3>
+                    </div>
+                    {wish.notes && <p className="text-sm text-muted mt-1 ml-5 line-clamp-2">{wish.notes}</p>}
+                    {wish.link && (
+                        <a href={wish.link} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline mt-1 ml-5 block truncate">
+                            Ver enlace
+                        </a>
+                    )}
                 </div>
-                {wish.notes && <p className="text-sm text-muted mt-1 ml-5">{wish.notes}</p>}
-                {wish.link && (
-                    <a href={wish.link} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline mt-1 ml-5 block">
-                        Ver enlace
-                    </a>
-                )}
-            </div>
-            <div className="flex items-center gap-4">
-                {wish.price !== null && <span className="font-bold text-primary">S/ {wish.price.toFixed(2)}</span>}
-                <div className="flex gap-2">
-                    <Button variant="ghost" size="sm" onClick={() => onEdit(wish)}>Editar</Button>
-                    <Button variant="danger" size="sm" onClick={() => onDelete(wish.id)}>Eliminar</Button>
+                <div className="flex items-center justify-between sm:justify-end gap-3 ml-5 sm:ml-0">
+                    {wish.price !== null && <span className="font-bold text-primary whitespace-nowrap">S/ {wish.price.toFixed(2)}</span>}
+                    <div className="flex gap-1.5">
+                        <Button variant="teal" size="sm" onClick={() => onEdit(wish)} className="px-2 sm:px-3">Editar</Button>
+                        <Button variant="danger" size="sm" onClick={() => onDelete(wish.id)} className="px-2 sm:px-3">Eliminar</Button>
+                    </div>
                 </div>
             </div>
         </Card>

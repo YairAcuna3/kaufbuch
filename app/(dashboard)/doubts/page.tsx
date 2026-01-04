@@ -277,7 +277,7 @@ function DoubtCard({
                     />
                 </div>
                 <div className="flex gap-2">
-                    <Button variant="ghost" size="sm" onClick={() => onEdit(doubt)}>
+                    <Button variant="teal" size="sm" onClick={() => onEdit(doubt)}>
                         Editar
                     </Button>
                     <Button variant="danger" size="sm" onClick={() => onDelete(doubt.id)}>

@@ -243,44 +243,46 @@ export default function RecordsPage() {
                     </Card>
                 ) : (
                     records.map((record) => (
-                        <Card key={record.id} className="flex items-center justify-between">
-                            <div className="flex-1">
-                                <div className="flex items-center gap-3">
-                                    <h3 className="font-medium">{record.name}</h3>
-                                    {record.tags.map((tag) => (
-                                        <span
-                                            key={tag.id}
-                                            className="px-2 py-0.5 bg-primary-muted text-primary text-xs rounded-full"
-                                        >
-                                            {tag.name}
-                                        </span>
-                                    ))}
+                        <Card key={record.id}>
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                                <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        <h3 className="font-medium truncate">{record.name}</h3>
+                                        {record.tags.map((tag) => (
+                                            <span
+                                                key={tag.id}
+                                                className="px-2 py-0.5 bg-primary-muted text-primary text-xs rounded-full"
+                                            >
+                                                {tag.name}
+                                            </span>
+                                        ))}
+                                    </div>
+                                    {record.notes && (
+                                        <p className="text-sm text-muted mt-1 line-clamp-2">{record.notes}</p>
+                                    )}
+                                    {record.buyDate && (
+                                        <p className="text-xs text-muted mt-1">
+                                            Compra: {formatDate(record.buyDate)}
+                                        </p>
+                                    )}
                                 </div>
-                                {record.notes && (
-                                    <p className="text-sm text-muted mt-1">{record.notes}</p>
-                                )}
-                                {record.buyDate && (
-                                    <p className="text-xs text-muted mt-1">
-                                        Compra: {formatDate(record.buyDate)}
-                                    </p>
-                                )}
-                            </div>
-                            <div className="flex items-center gap-4">
-                                <span
-                                    className={`font-bold ${record.price && record.price >= 0 ? "text-success" : "text-danger"
-                                        }`}
-                                >
-                                    {record.price !== null
-                                        ? `${record.price >= 0 ? "+" : ""}${record.price.toFixed(2)}`
-                                        : "-"}
-                                </span>
-                                <div className="flex gap-2">
-                                    <Button variant="ghost" size="sm" onClick={() => openModal(record)}>
-                                        Editar
-                                    </Button>
-                                    <Button variant="danger" size="sm" onClick={() => handleDelete(record.id)}>
-                                        Eliminar
-                                    </Button>
+                                <div className="flex items-center justify-between sm:justify-end gap-3">
+                                    <span
+                                        className={`font-bold whitespace-nowrap ${record.price && record.price >= 0 ? "text-success" : "text-danger"
+                                            }`}
+                                    >
+                                        {record.price !== null
+                                            ? `${record.price >= 0 ? "+" : ""}${record.price.toFixed(2)}`
+                                            : "-"}
+                                    </span>
+                                    <div className="flex gap-1.5">
+                                        <Button variant="teal" size="sm" onClick={() => openModal(record)} className="px-2 sm:px-3">
+                                            Editar
+                                        </Button>
+                                        <Button variant="danger" size="sm" onClick={() => handleDelete(record.id)} className="px-2 sm:px-3">
+                                            Eliminar
+                                        </Button>
+                                    </div>
                                 </div>
                             </div>
                         </Card>

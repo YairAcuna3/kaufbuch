@@ -13,6 +13,9 @@
   --danger: #ef4444;
   --danger-hover: #dc2626;
   --success: #00ff18;
+  --teal: #004a7f;
+  --teal-hover: #003a66;
+  --teal-light: #1a5a8f;
   --card: #1a1920;
   --input: #252430;
 }
@@ -30,6 +33,9 @@
   --color-danger: var(--danger);
   --color-danger-hover: var(--danger-hover);
   --color-success: var(--success);
+  --color-teal: var(--teal);
+  --color-teal-hover: var(--teal-hover);
+  --color-teal-light: var(--teal-light);
   --color-card: var(--card);
   --color-input: var(--input);
 }
