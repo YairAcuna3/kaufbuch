@@ -1,0 +1,112 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  password  String
+  bio       String?
+  photo     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tags    Tag[]
+  records Record[]
+  wishes  Wish[]
+  gifts   Gift[]
+  doubts  Doubt[]
+  groups  Group[]
+}
+
+model Tag {
+  id     String @id @default(cuid())
+  name   String
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  records Record[]
+
+  @@unique([name, userId])
+}
+
+model Record {
+  id        String    @id @default(cuid())
+  name      String
+  price     Float?
+  notes     String?
+  buyDate   DateTime?
+  isIncome  Boolean   @default(false)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  tags Tag[]
+}
+
+model Group {
+  id     String @id @default(cuid())
+  name   String
+  type   String // "wish" or "gift"
+  order  Int    @default(0)
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  wishes Wish[]
+  gifts  Gift[]
+
+  @@unique([name, userId, type])
+}
+
+model Wish {
+  id        String   @id @default(cuid())
+  name      String
+  price     Float?
+  notes     String?
+  link      String?
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userId  String
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  groupId String?
+  group   Group?  @relation(fields: [groupId], references: [id], onDelete: SetNull)
+}
+
+model Gift {
+  id        String   @id @default(cuid())
+  name      String
+  price     Float?
+  toWho     String?
+  notes     String?
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userId  String
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  groupId String?
+  group   Group?  @relation(fields: [groupId], references: [id], onDelete: SetNull)
+}
+
+model Doubt {
+  id        String   @id @default(cuid())
+  toWho     String
+  doubt     Boolean // true = debo, false = me deben
+  amount    Float
+  wasPay    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
