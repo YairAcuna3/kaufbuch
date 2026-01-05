@@ -12,7 +12,8 @@ export async function PUT(
   }
 
   const { id } = await params;
-  const { name, price, notes, buyDate, isIncome, tagIds } = await req.json();
+  const { name, price, notes, buyDate, isIncome, isGift, tagIds } =
+    await req.json();
 
   const record = await prisma.record.update({
     where: { id, userId: session.user.id },
@@ -22,6 +23,7 @@ export async function PUT(
       notes,
       buyDate: buyDate ? new Date(buyDate) : null,
       isIncome,
+      isGift: isGift || false,
       tags: { set: tagIds?.map((tid: string) => ({ id: tid })) || [] },
     },
     include: { tags: true },

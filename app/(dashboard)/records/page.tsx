@@ -1,14 +1,14 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
-import { Card } from "@/app/components/ui/Card"
-import { Input } from "@/app/components/ui/Input"
-import { Textarea } from "@/app/components/ui/Textarea"
+import { useState } from "react"
 import { Button } from "@/app/components/ui/Button"
 import { Modal } from "@/app/components/ui/Modal"
+import { Input } from "@/app/components/ui/Input"
+import { Textarea } from "@/app/components/ui/Textarea"
 import { Switch } from "@/app/components/ui/Switch"
-import { Select } from "@/app/components/ui/Select"
-import { formatDate } from "@/app/lib/dateUtils"
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/app/components/ui/Tabs"
+import RecordsList from "@/app/components/RecordsList"
+import BalanceAdjustments from "@/app/components/BalanceAdjustments"
 
 interface Tag {
     id: string
@@ -22,23 +22,16 @@ interface Record {
     notes: string | null
     buyDate: string | null
     isIncome: boolean
+    isGift: boolean
     tags: Tag[]
 }
 
 export default function RecordsPage() {
-    const [records, setRecords] = useState<Record[]>([])
-    const [tags, setTags] = useState<Tag[]>([])
     const [isModalOpen, setIsModalOpen] = useState(false)
+    const [isBalanceAdjustmentsOpen, setIsBalanceAdjustmentsOpen] = useState(false)
     const [editingRecord, setEditingRecord] = useState<Record | null>(null)
-    const [search, setSearch] = useState("")
-    const [sortBy, setSortBy] = useState("createdAt")
-    const [sortOrder, setSortOrder] = useState("desc")
-    const [selectedTags, setSelectedTags] = useState<string[]>([])
-    const [newTagName, setNewTagName] = useState("")
-    const [currentPage, setCurrentPage] = useState(1)
-    const [totalPages, setTotalPages] = useState(1)
-    const [total, setTotal] = useState(0)
-    const [totalBalance, setTotalBalance] = useState(0)
+    const [refreshTrigger, setRefreshTrigger] = useState(0)
+    const [tags, setTags] = useState<Tag[]>([])
 
     // Form state
     const [formName, setFormName] = useState("")
@@ -46,38 +39,14 @@ export default function RecordsPage() {
     const [formNotes, setFormNotes] = useState("")
     const [formBuyDate, setFormBuyDate] = useState("")
     const [formIsIncome, setFormIsIncome] = useState(false)
+    const [formIsGift, setFormIsGift] = useState(false)
     const [formTagIds, setFormTagIds] = useState<string[]>([])
-
-    const fetchRecords = useCallback(async () => {
-        const params = new URLSearchParams()
-        if (search) params.set("search", search)
-        params.set("sortBy", sortBy)
-        params.set("sortOrder", sortOrder)
-        if (selectedTags.length) params.set("tags", selectedTags.join(","))
-        params.set("page", currentPage.toString())
-
-        const res = await fetch(`/api/records?${params}`)
-        const data = await res.json()
-        setRecords(data.records)
-        setTotalPages(data.pagination.totalPages)
-        setTotal(data.pagination.total)
-        setTotalBalance(data.totalBalance)
-    }, [search, sortBy, sortOrder, selectedTags, currentPage])
 
     const fetchTags = async () => {
         const res = await fetch("/api/tags")
         const data = await res.json()
         setTags(data)
     }
-
-    useEffect(() => {
-        fetchRecords()
-        fetchTags()
-    }, [fetchRecords])
-
-    useEffect(() => {
-        setCurrentPage(1)
-    }, [search, sortBy, sortOrder, selectedTags])
 
     const openModal = (record?: Record) => {
         if (record) {
@@ -87,6 +56,7 @@ export default function RecordsPage() {
             setFormNotes(record.notes || "")
             setFormBuyDate(record.buyDate ? record.buyDate.split("T")[0] : "")
             setFormIsIncome(record.isIncome)
+            setFormIsGift(record.isGift)
             setFormTagIds(record.tags.map((t) => t.id))
         } else {
             setEditingRecord(null)
@@ -95,8 +65,10 @@ export default function RecordsPage() {
             setFormNotes("")
             setFormBuyDate("")
             setFormIsIncome(false)
+            setFormIsGift(false)
             setFormTagIds([])
         }
+        fetchTags()
         setIsModalOpen(true)
     }
 
@@ -114,6 +86,7 @@ export default function RecordsPage() {
             notes: formNotes || null,
             buyDate: formBuyDate || null,
             isIncome: formIsIncome,
+            isGift: formIsGift,
             tagIds: formTagIds,
         }
 
@@ -132,31 +105,13 @@ export default function RecordsPage() {
         }
 
         closeModal()
-        fetchRecords()
+        setRefreshTrigger(prev => prev + 1)
     }
 
     const handleDelete = async (id: string) => {
         if (!confirm("¿Eliminar este registro?")) return
         await fetch(`/api/records/${id}`, { method: "DELETE" })
-        fetchRecords()
-    }
-
-    const handleCreateTag = async () => {
-        if (!newTagName.trim()) return
-        const res = await fetch("/api/tags", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ name: newTagName }),
-        })
-        const tag = await res.json()
-        setTags([...tags, tag])
-        setNewTagName("")
-    }
-
-    const toggleFilterTag = (tagId: string) => {
-        setSelectedTags((prev) =>
-            prev.includes(tagId) ? prev.filter((t) => t !== tagId) : [...prev, tagId]
-        )
+        setRefreshTrigger(prev => prev + 1)
     }
 
     const toggleFormTag = (tagId: string) => {
@@ -172,150 +127,47 @@ export default function RecordsPage() {
                 <Button onClick={() => openModal()}>+ Nuevo registro</Button>
             </div>
 
-            {/* Filters */}
-            <Card className="mb-6">
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <Input
-                        placeholder="Buscar por nombre o notas..."
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                    />
-                    <Select
-                        value={sortBy}
-                        onChange={(e) => setSortBy(e.target.value)}
-                        options={[
-                            { value: "createdAt", label: "Fecha de creación" },
-                            { value: "buyDate", label: "Fecha de compra" },
-                            { value: "name", label: "Nombre" },
-                            { value: "price", label: "Precio" },
-                        ]}
-                    />
-                    <Select
-                        value={sortOrder}
-                        onChange={(e) => setSortOrder(e.target.value)}
-                        options={[
-                            { value: "desc", label: "Mayor a menor / Z-A" },
-                            { value: "asc", label: "Menor a mayor / A-Z" },
-                        ]}
-                    />
-                    <div className="flex items-center gap-2">
-                        <Input
-                            placeholder="Nueva categoría"
-                            value={newTagName}
-                            onChange={(e) => setNewTagName(e.target.value)}
-                            className="flex-1"
-                        />
-                        <Button onClick={handleCreateTag} size="sm">+</Button>
-                    </div>
-                </div>
-                {tags.length > 0 && (
-                    <div className="flex flex-wrap gap-2 mt-4">
-                        {tags.map((tag) => (
-                            <button
-                                key={tag.id}
-                                onClick={() => toggleFilterTag(tag.id)}
-                                className={`px-3 py-1 rounded-full text-sm transition-colors ${selectedTags.includes(tag.id)
-                                    ? "bg-primary text-background"
-                                    : "bg-secondary text-foreground border border-border hover:border-primary"
-                                    }`}
-                            >
-                                {tag.name}
-                            </button>
-                        ))}
-                    </div>
-                )}
-            </Card>
+            <Tabs defaultValue="expenses">
+                <div className="flex justify-between items-center mb-4">
+                    <TabsList>
+                        <TabsTrigger value="expenses">Gastos</TabsTrigger>
+                        <TabsTrigger value="income">Ingresos</TabsTrigger>
+                    </TabsList>
 
-            {/* Summary */}
-            <div className="mb-6 p-4 bg-card border border-border rounded-xl">
-                <span className="text-muted">Balance total: </span>
-                <span className={`text-xl font-bold ${totalBalance >= 0 ? "text-success" : "text-danger"}`}>
-                    {totalBalance >= 0 ? "+" : ""}{totalBalance.toFixed(2)}
-                </span>
-                <span className="text-muted ml-4">({total} registros)</span>
-            </div>
-
-            {/* Records list */}
-            <div className="space-y-3">
-                {records.length === 0 ? (
-                    <Card className="text-center text-muted py-12">
-                        No hay registros. ¡Crea el primero!
-                    </Card>
-                ) : (
-                    records.map((record) => (
-                        <Card key={record.id}>
-                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                                <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-2 flex-wrap">
-                                        <h3 className="font-medium truncate">{record.name}</h3>
-                                        {record.tags.map((tag) => (
-                                            <span
-                                                key={tag.id}
-                                                className="px-2 py-0.5 bg-primary-muted text-primary text-xs rounded-full"
-                                            >
-                                                {tag.name}
-                                            </span>
-                                        ))}
-                                    </div>
-                                    {record.notes && (
-                                        <p className="text-sm text-muted mt-1 line-clamp-2">{record.notes}</p>
-                                    )}
-                                    {record.buyDate && (
-                                        <p className="text-xs text-muted mt-1">
-                                            Compra: {formatDate(record.buyDate)}
-                                        </p>
-                                    )}
-                                </div>
-                                <div className="flex items-center justify-between sm:justify-end gap-3">
-                                    <span
-                                        className={`font-bold whitespace-nowrap ${record.price && record.price >= 0 ? "text-success" : "text-danger"
-                                            }`}
-                                    >
-                                        {record.price !== null
-                                            ? `${record.price >= 0 ? "+" : ""}${record.price.toFixed(2)}`
-                                            : "-"}
-                                    </span>
-                                    <div className="flex gap-1.5">
-                                        <Button variant="teal" size="sm" onClick={() => openModal(record)} className="px-2 sm:px-3">
-                                            Editar
-                                        </Button>
-                                        <Button variant="danger" size="sm" onClick={() => handleDelete(record.id)} className="px-2 sm:px-3">
-                                            Eliminar
-                                        </Button>
-                                    </div>
-                                </div>
-                            </div>
-                        </Card>
-                    ))
-                )}
-            </div>
-
-            {/* Pagination */}
-            {totalPages > 1 && (
-                <div className="flex items-center justify-center gap-2 mt-6">
                     <Button
                         variant="secondary"
                         size="sm"
-                        onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                        disabled={currentPage === 1}
+                        onClick={() => setIsBalanceAdjustmentsOpen(true)}
+                        className="flex items-center gap-2"
                     >
-                        Anterior
-                    </Button>
-                    <span className="text-sm text-muted px-4">
-                        Página {currentPage} de {totalPages}
-                    </span>
-                    <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                        disabled={currentPage === totalPages}
-                    >
-                        Siguiente
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                        Ajustes
                     </Button>
                 </div>
-            )}
 
-            {/* Modal */}
+                <TabsContent value="expenses">
+                    <RecordsList
+                        isIncome={false}
+                        onEdit={openModal}
+                        onDelete={handleDelete}
+                        refreshTrigger={refreshTrigger}
+                    />
+                </TabsContent>
+
+                <TabsContent value="income">
+                    <RecordsList
+                        isIncome={true}
+                        onEdit={openModal}
+                        onDelete={handleDelete}
+                        refreshTrigger={refreshTrigger}
+                    />
+                </TabsContent>
+            </Tabs>
+
+            {/* Record Modal */}
             <Modal
                 isOpen={isModalOpen}
                 onClose={closeModal}
@@ -356,6 +208,15 @@ export default function RecordsPage() {
                             labelOn="Ingreso"
                         />
                     </div>
+                    <div>
+                        <label className="block text-sm font-medium text-foreground mb-2">¿Es regalo?</label>
+                        <Switch
+                            checked={formIsGift}
+                            onChange={setFormIsGift}
+                            labelOff="No"
+                            labelOn="Sí"
+                        />
+                    </div>
                     {tags.length > 0 && (
                         <div>
                             <label className="block text-sm font-medium text-foreground mb-2">Categorías</label>
@@ -386,6 +247,12 @@ export default function RecordsPage() {
                     </div>
                 </form>
             </Modal>
+
+            {/* Balance Adjustments Modal */}
+            <BalanceAdjustments
+                isOpen={isBalanceAdjustmentsOpen}
+                onClose={() => setIsBalanceAdjustmentsOpen(false)}
+            />
         </div>
     )
 }

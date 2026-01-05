@@ -18,12 +18,13 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  tags    Tag[]
-  records Record[]
-  wishes  Wish[]
-  gifts   Gift[]
-  doubts  Doubt[]
-  groups  Group[]
+  tags               Tag[]
+  records            Record[]
+  wishes             Wish[]
+  gifts              Gift[]
+  doubts             Doubt[]
+  groups             Group[]
+  balanceAdjustments BalanceAdjustment[]
 }
 
 model Tag {
@@ -44,6 +45,7 @@ model Record {
   notes     String?
   buyDate   DateTime?
   isIncome  Boolean   @default(false)
+  isGift    Boolean   @default(false)
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
@@ -110,4 +112,13 @@ model Doubt {
 
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model BalanceAdjustment {
+  id        String   @id @default(cuid())
+  amount    Float
+  reason    String?
+  createdAt DateTime @default(now())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
