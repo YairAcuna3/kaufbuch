@@ -56,26 +56,38 @@ export async function GET(req: Request) {
     }
   })();
 
-  const [records, total, balanceResult, overallBalanceResult] =
-    await Promise.all([
-      prisma.record.findMany({
-        where,
-        include: { tags: true },
-        orderBy,
-        skip: (page - 1) * pageSize,
-        take: pageSize,
-      }),
-      prisma.record.count({ where }),
-      prisma.record.aggregate({
-        where: { ...where, isGift: false },
-        _sum: { price: true },
-      }),
-      // Calcular saldo total general (todos los registros del usuario, excluyendo regalos)
-      prisma.record.aggregate({
-        where: { userId: session.user.id, isGift: false },
-        _sum: { price: true },
-      }),
-    ]);
+  const [
+    records,
+    total,
+    balanceResult,
+    overallBalanceResult,
+    adjustmentsResult,
+  ] = await Promise.all([
+    prisma.record.findMany({
+      where,
+      include: { tags: true },
+      orderBy,
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+    }),
+    prisma.record.count({ where }),
+    prisma.record.aggregate({
+      where: { ...where, isGift: false },
+      _sum: { price: true },
+    }),
+    // Calcular saldo total general (todos los registros del usuario, excluyendo regalos)
+    prisma.record.aggregate({
+      where: { userId: session.user.id, isGift: false },
+      _sum: { price: true },
+    }),
+    // Sumar todos los ajustes de balance del usuario
+    prisma.balanceAdjustment.aggregate({
+      where: { userId: session.user.id },
+      _sum: { amount: true },
+    }),
+  ]);
+
+  const adjustmentsTotal = adjustmentsResult._sum.amount || 0;
 
   return NextResponse.json({
     records,
@@ -86,7 +98,7 @@ export async function GET(req: Request) {
       totalPages: Math.ceil(total / pageSize),
     },
     totalBalance: balanceResult._sum.price || 0,
-    overallBalance: overallBalanceResult._sum.price || 0,
+    overallBalance: (overallBalanceResult._sum.price || 0) + adjustmentsTotal,
   });
 }
 

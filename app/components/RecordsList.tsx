@@ -155,24 +155,28 @@ export default function RecordsList({ isIncome, onEdit, onDelete, refreshTrigger
 
             {/* Summary */}
             <div className="mb-6 p-4 bg-card border border-border rounded-xl">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <div className="flex flex-col gap-3">
                     {/* Saldo total - siempre visible */}
-                    <div>
-                        <span className="text-muted">Saldo total: </span>
-                        <span className={`text-xl font-bold ${overallBalance >= 0 ? "text-success" : "text-danger"}`}>
-                            {overallBalance >= 0 ? "+" : ""}{overallBalance.toFixed(2)}
-                        </span>
-                    </div>
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pb-3 border-b border-border sm:border-b-0 sm:pb-0">
+                        <div className="flex items-baseline gap-2">
+                            <span className="text-sm sm:text-base text-muted">Saldo total:</span>
+                            <span className={`text-xl sm:text-2xl font-bold ${overallBalance >= 0 ? "text-success" : "text-danger"}`}>
+                                {overallBalance >= 0 ? "+" : ""}{overallBalance.toFixed(2)}
+                            </span>
+                        </div>
 
-                    {/* Total específico del tipo */}
-                    <div className="text-right">
-                        <span className="text-muted">
-                            {isIncome ? "Total ingresos: " : "Total gastos: "}
-                        </span>
-                        <span className={`text-xl font-bold ${totalBalance >= 0 ? "text-success" : "text-danger"}`}>
-                            {totalBalance >= 0 ? "+" : ""}{totalBalance.toFixed(2)}
-                        </span>
-                        <span className="text-muted ml-4">({total} registros)</span>
+                        {/* Total específico del tipo */}
+                        <div className="flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-2">
+                            <div className="flex items-baseline gap-2">
+                                <span className="text-sm sm:text-base text-muted">
+                                    {isIncome ? "Total ingresos:" : "Total gastos:"}
+                                </span>
+                                <span className={`text-lg sm:text-xl font-bold ${totalBalance >= 0 ? "text-success" : "text-danger"}`}>
+                                    {totalBalance >= 0 ? "+" : ""}{totalBalance.toFixed(2)}
+                                </span>
+                            </div>
+                            <span className="text-xs sm:text-sm text-muted">({total} registros)</span>
+                        </div>
                     </div>
                 </div>
             </div>

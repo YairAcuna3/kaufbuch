@@ -107,9 +107,9 @@ export default function BalanceAdjustments({ isOpen, onClose }: BalanceAdjustmen
     }
 
     const formatCurrency = (amount: number) => {
-        return new Intl.NumberFormat('es-ES', {
+        return new Intl.NumberFormat('es-PE', {
             style: 'currency',
-            currency: 'EUR'
+            currency: 'PEN'
         }).format(amount)
     }
 
@@ -134,14 +134,14 @@ export default function BalanceAdjustments({ isOpen, onClose }: BalanceAdjustmen
                 size="lg"
             >
                 <div className="space-y-4">
-                    <div className="flex justify-between items-center">
+                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
                         <div>
                             <p className="text-sm text-muted-foreground">Total de ajustes:</p>
                             <p className={`text-lg font-semibold ${totalAdjustments >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                                 {formatCurrency(totalAdjustments)}
                             </p>
                         </div>
-                        <Button onClick={() => openFormModal()}>+ Nuevo ajuste</Button>
+                        <Button onClick={() => openFormModal()} className="w-full sm:w-auto">+ Nuevo ajuste</Button>
                     </div>
 
                     {loading ? (
@@ -157,28 +157,29 @@ export default function BalanceAdjustments({ isOpen, onClose }: BalanceAdjustmen
                             {adjustments.map((adjustment) => (
                                 <div
                                     key={adjustment.id}
-                                    className="flex items-center justify-between p-3 border border-border rounded-lg"
+                                    className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 border border-border rounded-lg"
                                 >
-                                    <div className="flex-1">
-                                        <div className="flex items-center gap-2">
-                                            <span className={`font-medium ${adjustment.amount >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                                            <span className={`font-medium text-base sm:text-lg ${adjustment.amount >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                                                 {formatCurrency(adjustment.amount)}
                                             </span>
                                             {adjustment.reason && (
-                                                <span className="text-sm text-muted-foreground">
-                                                    - {adjustment.reason}
+                                                <span className="text-sm text-muted-foreground truncate">
+                                                    {adjustment.reason}
                                                 </span>
                                             )}
                                         </div>
-                                        <p className="text-xs text-muted-foreground">
+                                        <p className="text-xs text-muted-foreground mt-1">
                                             {formatDate(adjustment.createdAt)}
                                         </p>
                                     </div>
-                                    <div className="flex gap-2">
+                                    <div className="flex gap-2 w-full sm:w-auto">
                                         <Button
                                             size="sm"
                                             variant="secondary"
                                             onClick={() => openFormModal(adjustment)}
+                                            className="flex-1 sm:flex-none"
                                         >
                                             Editar
                                         </Button>
@@ -186,6 +187,7 @@ export default function BalanceAdjustments({ isOpen, onClose }: BalanceAdjustmen
                                             size="sm"
                                             variant="danger"
                                             onClick={() => handleDelete(adjustment.id)}
+                                            className="flex-1 sm:flex-none"
                                         >
                                             Eliminar
                                         </Button>
@@ -220,11 +222,11 @@ export default function BalanceAdjustments({ isOpen, onClose }: BalanceAdjustmen
                         rows={3}
                         placeholder="Describe el motivo del ajuste..."
                     />
-                    <div className="flex gap-3 pt-4">
-                        <Button type="submit" className="flex-1">
+                    <div className="flex flex-col sm:flex-row gap-3 pt-4">
+                        <Button type="submit" className="flex-1 w-full">
                             {editingAdjustment ? "Guardar" : "Crear"}
                         </Button>
-                        <Button type="button" variant="secondary" onClick={closeFormModal}>
+                        <Button type="button" variant="secondary" onClick={closeFormModal} className="w-full sm:w-auto">
                             Cancelar
                         </Button>
                     </div>
