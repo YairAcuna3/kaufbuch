@@ -165,18 +165,20 @@ export default function RecordsList({ isIncome, onEdit, onDelete, refreshTrigger
                             </span>
                         </div>
 
-                        {/* Total específico del tipo */}
-                        <div className="flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-2">
-                            <div className="flex items-baseline gap-2">
-                                <span className="text-sm sm:text-base text-muted">
-                                    {isIncome ? "Total ingresos:" : "Total gastos:"}
-                                </span>
-                                <span className={`text-lg sm:text-xl font-bold ${totalBalance >= 0 ? "text-success" : "text-danger"}`}>
-                                    {totalBalance >= 0 ? "+" : ""}{totalBalance.toFixed(2)}
-                                </span>
+                        {/* Total específico del tipo - solo visible cuando hay búsqueda */}
+                        {search && (
+                            <div className="flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-2">
+                                <div className="flex items-baseline gap-2">
+                                    <span className="text-sm sm:text-base text-muted">
+                                        {isIncome ? "Total ingresos:" : "Total gastos:"}
+                                    </span>
+                                    <span className={`text-lg sm:text-xl font-bold ${totalBalance >= 0 ? "text-success" : "text-danger"}`}>
+                                        {totalBalance >= 0 ? "+" : ""}{totalBalance.toFixed(2)}
+                                    </span>
+                                </div>
+                                <span className="text-xs sm:text-sm text-muted">({total} registros)</span>
                             </div>
-                            <span className="text-xs sm:text-sm text-muted">({total} registros)</span>
-                        </div>
+                        )}
                     </div>
                 </div>
             </div>
