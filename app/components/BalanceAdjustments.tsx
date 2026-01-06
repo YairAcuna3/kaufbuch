@@ -5,21 +5,32 @@ import { Button } from "@/app/components/ui/Button"
 import { Modal } from "@/app/components/ui/Modal"
 import { Input } from "@/app/components/ui/Input"
 import { Textarea } from "@/app/components/ui/Textarea"
+import { Select } from "@/app/components/ui/Select"
+
+interface Wallet {
+    id: string
+    name: string
+    isDefault: boolean
+}
 
 interface BalanceAdjustment {
     id: string
     amount: number
     reason: string | null
     createdAt: string
+    wallet?: { id: string; name: string }
 }
 
 interface BalanceAdjustmentsProps {
     isOpen: boolean
     onClose: () => void
+    walletId?: string
+    onRefresh?: () => void
 }
 
-export default function BalanceAdjustments({ isOpen, onClose }: BalanceAdjustmentsProps) {
+export default function BalanceAdjustments({ isOpen, onClose, walletId, onRefresh }: BalanceAdjustmentsProps) {
     const [adjustments, setAdjustments] = useState<BalanceAdjustment[]>([])
+    const [wallets, setWallets] = useState<Wallet[]>([])
     const [isFormModalOpen, setIsFormModalOpen] = useState(false)
     const [editingAdjustment, setEditingAdjustment] = useState<BalanceAdjustment | null>(null)
     const [loading, setLoading] = useState(false)
@@ -27,11 +38,15 @@ export default function BalanceAdjustments({ isOpen, onClose }: BalanceAdjustmen
     // Form state
     const [formAmount, setFormAmount] = useState("")
     const [formReason, setFormReason] = useState("")
+    const [formWalletId, setFormWalletId] = useState("")
 
     const fetchAdjustments = async () => {
         try {
             setLoading(true)
-            const res = await fetch("/api/balance-adjustments")
+            const params = new URLSearchParams()
+            if (walletId) params.set("walletId", walletId)
+
+            const res = await fetch(`/api/balance-adjustments?${params}`)
             const data = await res.json()
             setAdjustments(data)
         } catch (error) {
@@ -41,21 +56,36 @@ export default function BalanceAdjustments({ isOpen, onClose }: BalanceAdjustmen
         }
     }
 
+    const fetchWallets = async () => {
+        try {
+            const res = await fetch("/api/wallets")
+            const data = await res.json()
+            setWallets(data)
+        } catch (error) {
+            console.error("Error fetching wallets:", error)
+        }
+    }
+
     useEffect(() => {
         if (isOpen) {
             fetchAdjustments()
+            fetchWallets()
         }
-    }, [isOpen])
+    }, [isOpen, walletId])
 
     const openFormModal = (adjustment?: BalanceAdjustment) => {
         if (adjustment) {
             setEditingAdjustment(adjustment)
             setFormAmount(adjustment.amount.toString())
             setFormReason(adjustment.reason || "")
+            setFormWalletId(adjustment.wallet?.id || "")
         } else {
             setEditingAdjustment(null)
             setFormAmount("")
             setFormReason("")
+            // Usar la wallet filtrada o la default
+            const defaultWallet = wallets.find(w => w.isDefault)
+            setFormWalletId(walletId || defaultWallet?.id || "")
         }
         setIsFormModalOpen(true)
     }
@@ -71,6 +101,7 @@ export default function BalanceAdjustments({ isOpen, onClose }: BalanceAdjustmen
         const body = {
             amount: parseFloat(formAmount),
             reason: formReason || null,
+            walletId: formWalletId || null,
         }
 
         try {
@@ -90,6 +121,7 @@ export default function BalanceAdjustments({ isOpen, onClose }: BalanceAdjustmen
 
             closeFormModal()
             fetchAdjustments()
+            onRefresh?.()
         } catch (error) {
             console.error("Error saving adjustment:", error)
         }
@@ -101,6 +133,7 @@ export default function BalanceAdjustments({ isOpen, onClose }: BalanceAdjustmen
         try {
             await fetch(`/api/balance-adjustments/${id}`, { method: "DELETE" })
             fetchAdjustments()
+            onRefresh?.()
         } catch (error) {
             console.error("Error deleting adjustment:", error)
         }
@@ -164,6 +197,11 @@ export default function BalanceAdjustments({ isOpen, onClose }: BalanceAdjustmen
                                             <span className={`font-medium text-base sm:text-lg ${adjustment.amount >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                                                 {formatCurrency(adjustment.amount)}
                                             </span>
+                                            {adjustment.wallet && (
+                                                <span className="text-xs bg-secondary text-muted px-2 py-0.5 rounded">
+                                                    {adjustment.wallet.name}
+                                                </span>
+                                            )}
                                             {adjustment.reason && (
                                                 <span className="text-sm text-muted-foreground truncate">
                                                     {adjustment.reason}
@@ -215,6 +253,14 @@ export default function BalanceAdjustments({ isOpen, onClose }: BalanceAdjustmen
                         required
                         placeholder="Ingresa un valor positivo o negativo"
                     />
+                    {wallets.length > 0 && (
+                        <Select
+                            label="Wallet"
+                            value={formWalletId}
+                            onChange={(e) => setFormWalletId(e.target.value)}
+                            options={wallets.map(w => ({ value: w.id, label: w.name }))}
+                        />
+                    )}
                     <Textarea
                         label="Motivo (opcional)"
                         value={formReason}

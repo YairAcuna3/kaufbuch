@@ -13,7 +13,7 @@ export async function PUT(
     }
 
     const { id } = await params;
-    const { amount, reason } = await request.json();
+    const { amount, reason, walletId } = await request.json();
 
     if (typeof amount !== "number") {
       return NextResponse.json(
@@ -22,14 +22,43 @@ export async function PUT(
       );
     }
 
+    // Verificar que el ajuste pertenece al usuario
+    const existingAdjustment = await prisma.balanceAdjustment.findFirst({
+      where: { id },
+      include: { wallet: true },
+    });
+
+    if (
+      !existingAdjustment ||
+      existingAdjustment.wallet.userId !== session.user.id
+    ) {
+      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+    }
+
+    // Si se cambia de wallet, verificar que la nueva wallet pertenece al usuario
+    let targetWalletId = existingAdjustment.walletId;
+    if (walletId && walletId !== existingAdjustment.walletId) {
+      const wallet = await prisma.wallet.findFirst({
+        where: { id: walletId, userId: session.user.id, isFrozen: false },
+      });
+      if (!wallet) {
+        return NextResponse.json(
+          { error: "Wallet no encontrada o congelada" },
+          { status: 404 }
+        );
+      }
+      targetWalletId = walletId;
+    }
+
     const adjustment = await prisma.balanceAdjustment.update({
-      where: {
-        id,
-        userId: session.user.id,
-      },
+      where: { id },
       data: {
         amount,
         reason: reason || null,
+        walletId: targetWalletId,
+      },
+      include: {
+        wallet: { select: { id: true, name: true } },
       },
     });
 
@@ -55,12 +84,20 @@ export async function DELETE(
 
     const { id } = await params;
 
-    await prisma.balanceAdjustment.delete({
-      where: {
-        id,
-        userId: session.user.id,
-      },
+    // Verificar que el ajuste pertenece al usuario
+    const existingAdjustment = await prisma.balanceAdjustment.findFirst({
+      where: { id },
+      include: { wallet: true },
     });
+
+    if (
+      !existingAdjustment ||
+      existingAdjustment.wallet.userId !== session.user.id
+    ) {
+      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+    }
+
+    await prisma.balanceAdjustment.delete({ where: { id } });
 
     return NextResponse.json({ success: true });
   } catch (error) {

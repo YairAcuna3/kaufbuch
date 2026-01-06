@@ -5,7 +5,7 @@ import { ReactNode, useEffect } from "react"
 interface ModalProps {
     isOpen: boolean
     onClose: () => void
-    title: string
+    title: ReactNode
     children: ReactNode
     size?: "sm" | "md" | "lg" | "xl"
 }
@@ -17,11 +17,9 @@ export function Modal({ isOpen, onClose, title, children, size = "md" }: ModalPr
         }
         if (isOpen) {
             document.addEventListener("keydown", handleEscape)
-            document.body.style.overflow = "hidden"
         }
         return () => {
             document.removeEventListener("keydown", handleEscape)
-            document.body.style.overflow = "unset"
         }
     }, [isOpen, onClose])
 
@@ -37,7 +35,7 @@ export function Modal({ isOpen, onClose, title, children, size = "md" }: ModalPr
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
             <div
-                className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+                className="absolute inset-0 bg-black/60 backdrop-blur-sm md:backdrop-blur-none"
                 onClick={onClose}
             />
             <div className={`relative bg-card border border-border rounded-xl p-6 w-full ${sizeClasses[size]} mx-4 max-h-[90vh] overflow-y-auto`}>

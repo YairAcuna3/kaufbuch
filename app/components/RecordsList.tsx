@@ -6,6 +6,7 @@ import { Input } from "@/app/components/ui/Input"
 import { Button } from "@/app/components/ui/Button"
 import { Select } from "@/app/components/ui/Select"
 import { formatDate } from "@/app/lib/dateUtils"
+import { AiOutlineEye, AiOutlineEyeInvisible } from "react-icons/ai"
 
 interface Tag {
     id: string
@@ -21,6 +22,7 @@ interface Record {
     isIncome: boolean
     isGift: boolean
     tags: Tag[]
+    wallet?: { id: string; name: string }
 }
 
 interface RecordsListProps {
@@ -28,9 +30,10 @@ interface RecordsListProps {
     onEdit: (record: Record) => void
     onDelete: (id: string) => void
     refreshTrigger: number
+    walletId?: string
 }
 
-export default function RecordsList({ isIncome, onEdit, onDelete, refreshTrigger }: RecordsListProps) {
+export default function RecordsList({ isIncome, onEdit, onDelete, refreshTrigger, walletId }: RecordsListProps) {
     const [records, setRecords] = useState<Record[]>([])
     const [tags, setTags] = useState<Tag[]>([])
     const [search, setSearch] = useState("")
@@ -44,6 +47,8 @@ export default function RecordsList({ isIncome, onEdit, onDelete, refreshTrigger
     const [total, setTotal] = useState(0)
     const [totalBalance, setTotalBalance] = useState(0)
     const [overallBalance, setOverallBalance] = useState(0)
+    const [walletBalance, setWalletBalance] = useState<number | null>(null)
+    const [showBalance, setShowBalance] = useState(false)
 
     const fetchRecords = useCallback(async () => {
         const params = new URLSearchParams()
@@ -54,6 +59,7 @@ export default function RecordsList({ isIncome, onEdit, onDelete, refreshTrigger
         params.set("page", currentPage.toString())
         params.set("pageSize", pageSize.toString())
         params.set("isIncome", isIncome.toString())
+        if (walletId) params.set("walletId", walletId)
 
         const res = await fetch(`/api/records?${params}`)
         const data = await res.json()
@@ -62,7 +68,8 @@ export default function RecordsList({ isIncome, onEdit, onDelete, refreshTrigger
         setTotal(data.pagination.total)
         setTotalBalance(data.totalBalance)
         setOverallBalance(data.overallBalance)
-    }, [search, sortBy, sortOrder, selectedTags, currentPage, pageSize, isIncome])
+        setWalletBalance(data.walletBalance)
+    }, [search, sortBy, sortOrder, selectedTags, currentPage, pageSize, isIncome, walletId])
 
     const fetchTags = async () => {
         const res = await fetch("/api/tags")
@@ -77,7 +84,7 @@ export default function RecordsList({ isIncome, onEdit, onDelete, refreshTrigger
 
     useEffect(() => {
         setCurrentPage(1)
-    }, [search, sortBy, sortOrder, selectedTags, pageSize])
+    }, [search, sortBy, sortOrder, selectedTags, pageSize, walletId])
 
     const handleCreateTag = async () => {
         if (!newTagName.trim()) return
@@ -156,30 +163,56 @@ export default function RecordsList({ isIncome, onEdit, onDelete, refreshTrigger
             {/* Summary */}
             <div className="mb-6 p-4 bg-card border border-border rounded-xl">
                 <div className="flex flex-col gap-3">
-                    {/* Saldo total - siempre visible */}
+                    {/* Saldo total - oculto por defecto */}
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pb-3 border-b border-border sm:border-b-0 sm:pb-0">
-                        <div className="flex items-baseline gap-2">
+                        <div className="flex items-center gap-2">
                             <span className="text-sm sm:text-base text-muted">Saldo total:</span>
-                            <span className={`text-xl sm:text-2xl font-bold ${overallBalance >= 0 ? "text-success" : "text-danger"}`}>
-                                {overallBalance >= 0 ? "+" : ""}{overallBalance.toFixed(2)}
-                            </span>
+                            {showBalance ? (
+                                <span className={`text-xl sm:text-2xl font-bold ${overallBalance >= 0 ? "text-success" : "text-danger"}`}>
+                                    {overallBalance >= 0 ? "+" : ""}{overallBalance.toFixed(2)}
+                                </span>
+                            ) : (
+                                <span className="text-xl sm:text-2xl font-bold text-muted">••••••</span>
+                            )}
+                            <button
+                                type="button"
+                                onClick={() => setShowBalance(!showBalance)}
+                                className="text-muted hover:text-foreground transition-colors p-1"
+                                title={showBalance ? "Ocultar saldo" : "Mostrar saldo"}
+                            >
+                                {showBalance ? (
+                                    <AiOutlineEyeInvisible className="w-5 h-5" />
+                                ) : (
+                                    <AiOutlineEye className="w-5 h-5" />
+                                )}
+                            </button>
                         </div>
 
-                        {/* Total específico del tipo - solo visible cuando hay búsqueda */}
-                        {search && (
-                            <div className="flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-2">
-                                <div className="flex items-baseline gap-2">
-                                    <span className="text-sm sm:text-base text-muted">
-                                        {isIncome ? "Total ingresos:" : "Total gastos:"}
-                                    </span>
-                                    <span className={`text-lg sm:text-xl font-bold ${totalBalance >= 0 ? "text-success" : "text-danger"}`}>
-                                        {totalBalance >= 0 ? "+" : ""}{totalBalance.toFixed(2)}
-                                    </span>
-                                </div>
-                                <span className="text-xs sm:text-sm text-muted">({total} registros)</span>
+                        {/* Saldo de wallet seleccionada - siempre visible */}
+                        {walletBalance !== null && (
+                            <div className="flex items-center gap-2">
+                                <span className="text-sm sm:text-base text-muted">Wallet:</span>
+                                <span className={`text-lg sm:text-xl font-bold ${walletBalance >= 0 ? "text-success" : "text-danger"}`}>
+                                    {walletBalance >= 0 ? "+" : ""}{walletBalance.toFixed(2)}
+                                </span>
                             </div>
                         )}
                     </div>
+
+                    {/* Total específico del tipo - solo visible cuando hay búsqueda */}
+                    {search && showBalance && (
+                        <div className="flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-2 pt-2">
+                            <div className="flex items-baseline gap-2">
+                                <span className="text-sm sm:text-base text-muted">
+                                    {isIncome ? "Total ingresos:" : "Total gastos:"}
+                                </span>
+                                <span className={`text-lg sm:text-xl font-bold ${totalBalance >= 0 ? "text-success" : "text-danger"}`}>
+                                    {totalBalance >= 0 ? "+" : ""}{totalBalance.toFixed(2)}
+                                </span>
+                            </div>
+                            <span className="text-xs sm:text-sm text-muted">({total} registros)</span>
+                        </div>
+                    )}
                 </div>
             </div>
 
@@ -204,6 +237,11 @@ export default function RecordsList({ isIncome, onEdit, onDelete, refreshTrigger
                                                 {tag.name}
                                             </span>
                                         ))}
+                                        {record.wallet && (
+                                            <span className="px-2 py-0.5 bg-secondary text-muted text-xs rounded-full">
+                                                {record.wallet.name}
+                                            </span>
+                                        )}
                                     </div>
                                     {record.notes && (
                                         <p className="text-sm text-muted mt-1 line-clamp-2">{record.notes}</p>
@@ -228,11 +266,15 @@ export default function RecordsList({ isIncome, onEdit, onDelete, refreshTrigger
                                             : "-"}
                                     </span>
                                     <div className="flex gap-1.5">
-                                        <Button variant="teal" size="sm" onClick={() => onEdit(record)} className="px-2 sm:px-3">
-                                            Editar
+                                        <Button variant="teal" size="sm" onClick={() => onEdit(record)} title="Editar">
+                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                            </svg>
                                         </Button>
-                                        <Button variant="danger" size="sm" onClick={() => onDelete(record.id)} className="px-2 sm:px-3">
-                                            Eliminar
+                                        <Button variant="danger" size="sm" onClick={() => onDelete(record.id)} title="Eliminar">
+                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                            </svg>
                                         </Button>
                                     </div>
                                 </div>

@@ -6,6 +6,13 @@ import { Input } from "@/app/components/ui/Input"
 import { Button } from "@/app/components/ui/Button"
 import { Modal } from "@/app/components/ui/Modal"
 import { Switch } from "@/app/components/ui/Switch"
+import { Select } from "@/app/components/ui/Select"
+
+interface Wallet {
+    id: string
+    name: string
+    isDefault: boolean
+}
 
 interface Doubt {
     id: string
@@ -13,10 +20,13 @@ interface Doubt {
     doubt: boolean // true = debo, false = me deben
     amount: number
     wasPay: boolean
+    wallet?: { id: string; name: string }
 }
 
 export default function DoubtsPage() {
     const [doubts, setDoubts] = useState<Doubt[]>([])
+    const [wallets, setWallets] = useState<Wallet[]>([])
+    const [selectedWalletFilter, setSelectedWalletFilter] = useState("")
     const [isModalOpen, setIsModalOpen] = useState(false)
     const [editingDoubt, setEditingDoubt] = useState<Doubt | null>(null)
 
@@ -24,16 +34,30 @@ export default function DoubtsPage() {
     const [formDoubt, setFormDoubt] = useState(true)
     const [formAmount, setFormAmount] = useState("")
     const [formWasPay, setFormWasPay] = useState(false)
+    const [formWalletId, setFormWalletId] = useState("")
 
     const fetchData = async () => {
-        const res = await fetch("/api/doubts")
+        const params = new URLSearchParams()
+        if (selectedWalletFilter) params.set("walletId", selectedWalletFilter)
+
+        const res = await fetch(`/api/doubts?${params}`)
         const data = await res.json()
         setDoubts(data)
     }
 
+    const fetchWallets = async () => {
+        const res = await fetch("/api/wallets")
+        const data = await res.json()
+        setWallets(data)
+    }
+
+    useEffect(() => {
+        fetchWallets()
+    }, [])
+
     useEffect(() => {
         fetchData()
-    }, [])
+    }, [selectedWalletFilter])
 
     const openModal = (doubt?: Doubt) => {
         if (doubt) {
@@ -42,12 +66,15 @@ export default function DoubtsPage() {
             setFormDoubt(doubt.doubt)
             setFormAmount(doubt.amount.toString())
             setFormWasPay(doubt.wasPay)
+            setFormWalletId(doubt.wallet?.id || "")
         } else {
             setEditingDoubt(null)
             setFormToWho("")
             setFormDoubt(true)
             setFormAmount("")
             setFormWasPay(false)
+            const defaultWallet = wallets.find(w => w.isDefault)
+            setFormWalletId(selectedWalletFilter || defaultWallet?.id || "")
         }
         setIsModalOpen(true)
     }
@@ -65,6 +92,7 @@ export default function DoubtsPage() {
             doubt: formDoubt,
             amount: parseFloat(formAmount),
             wasPay: formWasPay,
+            walletId: formWalletId || null,
         }
 
         if (editingDoubt) {
@@ -95,7 +123,7 @@ export default function DoubtsPage() {
         await fetch(`/api/doubts/${doubt.id}`, {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ ...doubt, wasPay: !doubt.wasPay }),
+            body: JSON.stringify({ ...doubt, wasPay: !doubt.wasPay, walletId: doubt.wallet?.id }),
         })
         fetchData()
     }
@@ -113,6 +141,20 @@ export default function DoubtsPage() {
                 <h1 className="text-2xl font-bold">Deudas</h1>
                 <Button onClick={() => openModal()}>+ Nueva deuda</Button>
             </div>
+
+            {/* Wallet filter */}
+            {wallets.length > 1 && (
+                <div className="mb-4">
+                    <Select
+                        value={selectedWalletFilter}
+                        onChange={(e) => setSelectedWalletFilter(e.target.value)}
+                        options={[
+                            { value: "", label: "Todas las wallets" },
+                            ...wallets.map(w => ({ value: w.id, label: w.name }))
+                        ]}
+                    />
+                </div>
+            )}
 
             {/* Summary */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
@@ -209,6 +251,14 @@ export default function DoubtsPage() {
                         onChange={(e) => setFormAmount(e.target.value)}
                         required
                     />
+                    {wallets.length > 0 && (
+                        <Select
+                            label="Wallet"
+                            value={formWalletId}
+                            onChange={(e) => setFormWalletId(e.target.value)}
+                            options={wallets.map(w => ({ value: w.id, label: w.name }))}
+                        />
+                    )}
                     <div>
                         <label className="block text-sm font-medium text-foreground mb-2">Tipo</label>
                         <Switch
@@ -256,9 +306,16 @@ function DoubtCard({
         <Card className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-center gap-4">
                 <div>
-                    <h3 className={`font-medium ${doubt.wasPay ? "line-through text-muted" : ""}`}>
-                        {doubt.toWho}
-                    </h3>
+                    <div className="flex items-center gap-2">
+                        <h3 className={`font-medium ${doubt.wasPay ? "line-through text-muted" : ""}`}>
+                            {doubt.toWho}
+                        </h3>
+                        {doubt.wallet && (
+                            <span className="text-xs bg-secondary text-muted px-2 py-0.5 rounded">
+                                {doubt.wallet.name}
+                            </span>
+                        )}
+                    </div>
                     <p className="text-sm text-muted">
                         {doubt.doubt ? "Le debo" : "Me debe"}
                     </p>

@@ -1,18 +1,27 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/app/components/ui/Button"
 import { Modal } from "@/app/components/ui/Modal"
 import { Input } from "@/app/components/ui/Input"
 import { Textarea } from "@/app/components/ui/Textarea"
 import { Switch } from "@/app/components/ui/Switch"
+import { Select } from "@/app/components/ui/Select"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/app/components/ui/Tabs"
 import RecordsList from "@/app/components/RecordsList"
 import BalanceAdjustments from "@/app/components/BalanceAdjustments"
+import WalletManager from "@/app/components/WalletManager"
 
 interface Tag {
     id: string
     name: string
+}
+
+interface Wallet {
+    id: string
+    name: string
+    isDefault: boolean
+    balance: number
 }
 
 interface Record {
@@ -24,14 +33,18 @@ interface Record {
     isIncome: boolean
     isGift: boolean
     tags: Tag[]
+    wallet?: { id: string; name: string }
 }
 
 export default function RecordsPage() {
     const [isModalOpen, setIsModalOpen] = useState(false)
     const [isBalanceAdjustmentsOpen, setIsBalanceAdjustmentsOpen] = useState(false)
+    const [isWalletManagerOpen, setIsWalletManagerOpen] = useState(false)
     const [editingRecord, setEditingRecord] = useState<Record | null>(null)
     const [refreshTrigger, setRefreshTrigger] = useState(0)
     const [tags, setTags] = useState<Tag[]>([])
+    const [wallets, setWallets] = useState<Wallet[]>([])
+    const [selectedWalletFilter, setSelectedWalletFilter] = useState("")
 
     // Form state
     const [formName, setFormName] = useState("")
@@ -41,12 +54,23 @@ export default function RecordsPage() {
     const [formIsIncome, setFormIsIncome] = useState(false)
     const [formIsGift, setFormIsGift] = useState(false)
     const [formTagIds, setFormTagIds] = useState<string[]>([])
+    const [formWalletId, setFormWalletId] = useState("")
 
     const fetchTags = async () => {
         const res = await fetch("/api/tags")
         const data = await res.json()
         setTags(data)
     }
+
+    const fetchWallets = async () => {
+        const res = await fetch("/api/wallets")
+        const data = await res.json()
+        setWallets(data)
+    }
+
+    useEffect(() => {
+        fetchWallets()
+    }, [])
 
     const openModal = (record?: Record) => {
         if (record) {
@@ -58,6 +82,7 @@ export default function RecordsPage() {
             setFormIsIncome(record.isIncome)
             setFormIsGift(record.isGift)
             setFormTagIds(record.tags.map((t) => t.id))
+            setFormWalletId(record.wallet?.id || "")
         } else {
             setEditingRecord(null)
             setFormName("")
@@ -67,6 +92,9 @@ export default function RecordsPage() {
             setFormIsIncome(false)
             setFormIsGift(false)
             setFormTagIds([])
+            // Usar la wallet default o la seleccionada en el filtro
+            const defaultWallet = wallets.find(w => w.isDefault)
+            setFormWalletId(selectedWalletFilter || defaultWallet?.id || "")
         }
         fetchTags()
         setIsModalOpen(true)
@@ -88,6 +116,7 @@ export default function RecordsPage() {
             isIncome: formIsIncome,
             isGift: formIsGift,
             tagIds: formTagIds,
+            walletId: formWalletId || null,
         }
 
         if (editingRecord) {
@@ -120,12 +149,39 @@ export default function RecordsPage() {
         )
     }
 
+    const handleWalletChange = () => {
+        fetchWallets()
+        setRefreshTrigger(prev => prev + 1)
+    }
+
     return (
         <div>
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
                 <h1 className="text-2xl font-bold">Registros</h1>
-                <Button onClick={() => openModal()}>+ Nuevo registro</Button>
+                <div className="flex gap-2">
+                    <Button variant="secondary" onClick={() => setIsWalletManagerOpen(true)}>
+                        Wallets
+                    </Button>
+                    <Button onClick={() => openModal()}>+ Nuevo registro</Button>
+                </div>
             </div>
+
+            {/* Wallet filter */}
+            {wallets.length > 1 && (
+                <div className="mb-4">
+                    <Select
+                        value={selectedWalletFilter}
+                        onChange={(e) => {
+                            setSelectedWalletFilter(e.target.value)
+                            setRefreshTrigger(prev => prev + 1)
+                        }}
+                        options={[
+                            { value: "", label: "Todas las wallets" },
+                            ...wallets.map(w => ({ value: w.id, label: w.name }))
+                        ]}
+                    />
+                </div>
+            )}
 
             <Tabs defaultValue="expenses">
                 <div className="flex justify-between items-center mb-4">
@@ -154,6 +210,7 @@ export default function RecordsPage() {
                         onEdit={openModal}
                         onDelete={handleDelete}
                         refreshTrigger={refreshTrigger}
+                        walletId={selectedWalletFilter}
                     />
                 </TabsContent>
 
@@ -163,6 +220,7 @@ export default function RecordsPage() {
                         onEdit={openModal}
                         onDelete={handleDelete}
                         refreshTrigger={refreshTrigger}
+                        walletId={selectedWalletFilter}
                     />
                 </TabsContent>
             </Tabs>
@@ -193,6 +251,14 @@ export default function RecordsPage() {
                         value={formBuyDate}
                         onChange={(e) => setFormBuyDate(e.target.value)}
                     />
+                    {wallets.length > 0 && (
+                        <Select
+                            label="Wallet"
+                            value={formWalletId}
+                            onChange={(e) => setFormWalletId(e.target.value)}
+                            options={wallets.map(w => ({ value: w.id, label: w.name }))}
+                        />
+                    )}
                     <Textarea
                         label="Notas"
                         value={formNotes}
@@ -252,6 +318,15 @@ export default function RecordsPage() {
             <BalanceAdjustments
                 isOpen={isBalanceAdjustmentsOpen}
                 onClose={() => setIsBalanceAdjustmentsOpen(false)}
+                walletId={selectedWalletFilter}
+                onRefresh={() => setRefreshTrigger(prev => prev + 1)}
+            />
+
+            {/* Wallet Manager Modal */}
+            <WalletManager
+                isOpen={isWalletManagerOpen}
+                onClose={() => setIsWalletManagerOpen(false)}
+                onWalletChange={handleWalletChange}
             />
         </div>
     )

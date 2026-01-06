@@ -18,13 +18,32 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  tags               Tag[]
+  tags    Tag[]
+  wishes  Wish[]
+  gifts   Gift[]
+  groups  Group[]
+  wallets Wallet[]
+}
+
+model Wallet {
+  id        String   @id @default(cuid())
+  name      String
+  isDefault Boolean  @default(false)
+  isFrozen  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userId   String
+  user     User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parentId String?
+  parent   Wallet? @relation("WalletHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+
+  children           Wallet[]            @relation("WalletHierarchy")
   records            Record[]
-  wishes             Wish[]
-  gifts              Gift[]
   doubts             Doubt[]
-  groups             Group[]
   balanceAdjustments BalanceAdjustment[]
+
+  @@unique([name, userId])
 }
 
 model Tag {
@@ -49,8 +68,8 @@ model Record {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
-  userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  walletId String
+  wallet   Wallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
 
   tags Tag[]
 }
@@ -110,8 +129,8 @@ model Doubt {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  walletId String
+  wallet   Wallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
 }
 
 model BalanceAdjustment {
@@ -119,6 +138,7 @@ model BalanceAdjustment {
   amount    Float
   reason    String?
   createdAt DateTime @default(now())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  walletId String
+  wallet   Wallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
 }
