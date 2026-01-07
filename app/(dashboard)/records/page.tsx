@@ -23,6 +23,8 @@ interface Wallet {
     name: string
     isDefault: boolean
     balance: number
+    parentId: string | null
+    children?: Wallet[]
 }
 
 interface Record {
