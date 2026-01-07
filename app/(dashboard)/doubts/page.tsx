@@ -7,11 +7,14 @@ import { Button } from "@/app/components/ui/Button"
 import { Modal } from "@/app/components/ui/Modal"
 import { Switch } from "@/app/components/ui/Switch"
 import { Select } from "@/app/components/ui/Select"
+import { WalletSelect } from "@/app/components/ui/WalletSelect"
 
 interface Wallet {
     id: string
     name: string
     isDefault: boolean
+    balance: number
+    parentId: string | null
 }
 
 interface Doubt {
@@ -145,13 +148,12 @@ export default function DoubtsPage() {
             {/* Wallet filter */}
             {wallets.length > 1 && (
                 <div className="mb-4">
-                    <Select
+                    <WalletSelect
                         value={selectedWalletFilter}
-                        onChange={(e) => setSelectedWalletFilter(e.target.value)}
-                        options={[
-                            { value: "", label: "Todas las wallets" },
-                            ...wallets.map(w => ({ value: w.id, label: w.name }))
-                        ]}
+                        onChange={setSelectedWalletFilter}
+                        wallets={wallets}
+                        allowAll={true}
+                        showBalance={true}
                     />
                 </div>
             )}
@@ -252,11 +254,12 @@ export default function DoubtsPage() {
                         required
                     />
                     {wallets.length > 0 && (
-                        <Select
+                        <WalletSelect
                             label="Wallet"
                             value={formWalletId}
-                            onChange={(e) => setFormWalletId(e.target.value)}
-                            options={wallets.map(w => ({ value: w.id, label: w.name }))}
+                            onChange={setFormWalletId}
+                            wallets={wallets}
+                            showBalance={true}
                         />
                     )}
                     <div>
@@ -334,11 +337,15 @@ function DoubtCard({
                     />
                 </div>
                 <div className="flex gap-2">
-                    <Button variant="teal" size="sm" onClick={() => onEdit(doubt)}>
-                        Editar
+                    <Button variant="teal" size="sm" onClick={() => onEdit(doubt)} title="Editar">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                        </svg>
                     </Button>
-                    <Button variant="danger" size="sm" onClick={() => onDelete(doubt.id)}>
-                        Eliminar
+                    <Button variant="danger" size="sm" onClick={() => onDelete(doubt.id)} title="Eliminar">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
                     </Button>
                 </div>
             </div>

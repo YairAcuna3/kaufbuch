@@ -7,6 +7,7 @@ import { Input } from "@/app/components/ui/Input"
 import { Textarea } from "@/app/components/ui/Textarea"
 import { Switch } from "@/app/components/ui/Switch"
 import { Select } from "@/app/components/ui/Select"
+import { WalletSelect } from "@/app/components/ui/WalletSelect"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/app/components/ui/Tabs"
 import RecordsList from "@/app/components/RecordsList"
 import BalanceAdjustments from "@/app/components/BalanceAdjustments"
@@ -169,16 +170,15 @@ export default function RecordsPage() {
             {/* Wallet filter */}
             {wallets.length > 1 && (
                 <div className="mb-4">
-                    <Select
+                    <WalletSelect
                         value={selectedWalletFilter}
-                        onChange={(e) => {
-                            setSelectedWalletFilter(e.target.value)
+                        onChange={(walletId) => {
+                            setSelectedWalletFilter(walletId)
                             setRefreshTrigger(prev => prev + 1)
                         }}
-                        options={[
-                            { value: "", label: "Todas las wallets" },
-                            ...wallets.map(w => ({ value: w.id, label: w.name }))
-                        ]}
+                        wallets={wallets}
+                        allowAll={true}
+                        showBalance={true}
                     />
                 </div>
             )}
@@ -252,11 +252,12 @@ export default function RecordsPage() {
                         onChange={(e) => setFormBuyDate(e.target.value)}
                     />
                     {wallets.length > 0 && (
-                        <Select
+                        <WalletSelect
                             label="Wallet"
                             value={formWalletId}
-                            onChange={(e) => setFormWalletId(e.target.value)}
-                            options={wallets.map(w => ({ value: w.id, label: w.name }))}
+                            onChange={setFormWalletId}
+                            wallets={wallets}
+                            showBalance={true}
                         />
                     )}
                     <Textarea

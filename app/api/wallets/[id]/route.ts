@@ -77,7 +77,7 @@ export async function PUT(
     }
 
     const { id } = await params;
-    const { name, parentId } = await request.json();
+    const { name, description, parentId } = await request.json();
 
     const wallet = await prisma.wallet.findFirst({
       where: { id, userId: session.user.id },
@@ -115,6 +115,10 @@ export async function PUT(
       where: { id },
       data: {
         name: name?.trim() || wallet.name,
+        description:
+          description !== undefined
+            ? description?.trim() || null
+            : wallet.description,
         parentId: parentId === null ? null : parentId || wallet.parentId,
       },
     });

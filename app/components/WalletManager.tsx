@@ -5,12 +5,14 @@ import { Button } from "@/app/components/ui/Button"
 import { Modal } from "@/app/components/ui/Modal"
 import { Input } from "@/app/components/ui/Input"
 import { Select } from "@/app/components/ui/Select"
+import { WalletSelect } from "@/app/components/ui/WalletSelect"
 import { IoMdSnow } from "react-icons/io"
 import { AiOutlineQuestionCircle } from "react-icons/ai"
 
 interface Wallet {
     id: string
     name: string
+    description: string | null
     isDefault: boolean
     isFrozen: boolean
     parentId: string | null
@@ -37,6 +39,7 @@ export default function WalletManager({ isOpen, onClose, onWalletChange }: Walle
 
     // Form state
     const [formName, setFormName] = useState("")
+    const [formDescription, setFormDescription] = useState("")
     const [formParentId, setFormParentId] = useState("")
 
     // Transfer state
@@ -49,6 +52,12 @@ export default function WalletManager({ isOpen, onClose, onWalletChange }: Walle
 
     // Balance visibility state
     const [showTotalBalance, setShowTotalBalance] = useState(false)
+
+    // Loading states for actions
+    const [savingWallet, setSavingWallet] = useState(false)
+    const [transferring, setTransferring] = useState(false)
+    const [freezing, setFreezing] = useState(false)
+    const [unfreezing, setUnfreezing] = useState<string | null>(null)
 
     const fetchWallets = async () => {
         try {
@@ -79,10 +88,12 @@ export default function WalletManager({ isOpen, onClose, onWalletChange }: Walle
         if (wallet) {
             setEditingWallet(wallet)
             setFormName(wallet.name)
+            setFormDescription(wallet.description || "")
             setFormParentId(wallet.parentId || "")
         } else {
             setEditingWallet(null)
             setFormName("")
+            setFormDescription("")
             setFormParentId("")
         }
         setIsFormModalOpen(true)
@@ -95,9 +106,11 @@ export default function WalletManager({ isOpen, onClose, onWalletChange }: Walle
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
+        setSavingWallet(true)
 
         const body = {
             name: formName,
+            description: formDescription || null,
             parentId: formParentId || null,
         }
 
@@ -121,6 +134,8 @@ export default function WalletManager({ isOpen, onClose, onWalletChange }: Walle
             onWalletChange?.()
         } catch (error) {
             console.error("Error saving wallet:", error)
+        } finally {
+            setSavingWallet(false)
         }
     }
 
@@ -153,6 +168,7 @@ export default function WalletManager({ isOpen, onClose, onWalletChange }: Walle
 
     const handleFreeze = async () => {
         if (!freezingWallet) return
+        setFreezing(true)
 
         try {
             const res = await fetch(`/api/wallets/${freezingWallet.id}/freeze`, {
@@ -179,10 +195,13 @@ export default function WalletManager({ isOpen, onClose, onWalletChange }: Walle
             onWalletChange?.()
         } catch (error) {
             console.error("Error freezing wallet:", error)
+        } finally {
+            setFreezing(false)
         }
     }
 
     const handleUnfreeze = async (wallet: Wallet) => {
+        setUnfreezing(wallet.id)
         try {
             const res = await fetch(`/api/wallets/${wallet.id}/unfreeze`, {
                 method: "POST",
@@ -198,11 +217,14 @@ export default function WalletManager({ isOpen, onClose, onWalletChange }: Walle
             onWalletChange?.()
         } catch (error) {
             console.error("Error unfreezing wallet:", error)
+        } finally {
+            setUnfreezing(null)
         }
     }
 
     const handleTransfer = async (e: React.FormEvent) => {
         e.preventDefault()
+        setTransferring(true)
 
         try {
             const res = await fetch("/api/wallets/transfer", {
@@ -229,6 +251,8 @@ export default function WalletManager({ isOpen, onClose, onWalletChange }: Walle
             onWalletChange?.()
         } catch (error) {
             console.error("Error transferring:", error)
+        } finally {
+            setTransferring(false)
         }
     }
 
@@ -255,6 +279,9 @@ export default function WalletManager({ isOpen, onClose, onWalletChange }: Walle
                             <span className="text-xs">🔒</span>
                         )}
                     </div>
+                    {wallet.description && (
+                        <p className="text-xs text-muted-foreground">{wallet.description}</p>
+                    )}
                     <span className={`text-sm ${wallet.balance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                         {formatCurrency(wallet.balance)}
                     </span>
@@ -354,6 +381,11 @@ export default function WalletManager({ isOpen, onClose, onWalletChange }: Walle
                         required
                         disabled={editingWallet?.isDefault}
                     />
+                    <Input
+                        label="Descripción (opcional)"
+                        value={formDescription}
+                        onChange={(e) => setFormDescription(e.target.value)}
+                    />
                     <Select
                         label="Dentro de (opcional)"
                         value={formParentId}
@@ -366,10 +398,10 @@ export default function WalletManager({ isOpen, onClose, onWalletChange }: Walle
                         ]}
                     />
                     <div className="flex gap-3 pt-4">
-                        <Button type="submit" className="flex-1">
+                        <Button type="submit" className="flex-1" loading={savingWallet}>
                             {editingWallet ? "Guardar" : "Crear"}
                         </Button>
-                        <Button type="button" variant="secondary" onClick={closeFormModal}>
+                        <Button type="button" variant="secondary" onClick={closeFormModal} disabled={savingWallet}>
                             Cancelar
                         </Button>
                     </div>
@@ -383,33 +415,23 @@ export default function WalletManager({ isOpen, onClose, onWalletChange }: Walle
                 title="Transferir entre wallets"
             >
                 <form onSubmit={handleTransfer} className="space-y-4">
-                    <Select
+                    <WalletSelect
                         label="Desde"
                         value={transferFrom}
-                        onChange={(e) => setTransferFrom(e.target.value)}
+                        onChange={setTransferFrom}
+                        wallets={wallets}
+                        showBalance={true}
+                        placeholder="Seleccionar..."
                         required
-                        options={[
-                            { value: "", label: "Seleccionar..." },
-                            ...wallets.map(w => ({
-                                value: w.id,
-                                label: `${w.name} (${formatCurrency(w.balance)})`
-                            }))
-                        ]}
                     />
-                    <Select
+                    <WalletSelect
                         label="Hacia"
                         value={transferTo}
-                        onChange={(e) => setTransferTo(e.target.value)}
+                        onChange={setTransferTo}
+                        wallets={wallets.filter(w => w.id !== transferFrom)}
+                        showBalance={true}
+                        placeholder="Seleccionar..."
                         required
-                        options={[
-                            { value: "", label: "Seleccionar..." },
-                            ...wallets
-                                .filter(w => w.id !== transferFrom)
-                                .map(w => ({
-                                    value: w.id,
-                                    label: `${w.name} (${formatCurrency(w.balance)})`
-                                }))
-                        ]}
                     />
                     <Input
                         label="Monto"
@@ -421,8 +443,8 @@ export default function WalletManager({ isOpen, onClose, onWalletChange }: Walle
                         required
                     />
                     <div className="flex gap-3 pt-4">
-                        <Button type="submit" className="flex-1">Transferir</Button>
-                        <Button type="button" variant="secondary" onClick={() => setIsTransferModalOpen(false)}>
+                        <Button type="submit" className="flex-1" loading={transferring}>Transferir</Button>
+                        <Button type="button" variant="secondary" onClick={() => setIsTransferModalOpen(false)} disabled={transferring}>
                             Cancelar
                         </Button>
                     </div>
@@ -445,17 +467,14 @@ export default function WalletManager({ isOpen, onClose, onWalletChange }: Walle
                                 </span>.
                                 Debes transferirlo a otra wallet antes de congelar.
                             </p>
-                            <Select
+                            <WalletSelect
                                 label="Transferir balance a"
                                 value={freezeTargetWallet}
-                                onChange={(e) => setFreezeTargetWallet(e.target.value)}
+                                onChange={setFreezeTargetWallet}
+                                wallets={wallets.filter(w => w.id !== freezingWallet?.id)}
+                                showBalance={true}
+                                placeholder="Seleccionar..."
                                 required
-                                options={[
-                                    { value: "", label: "Seleccionar..." },
-                                    ...wallets
-                                        .filter(w => w.id !== freezingWallet?.id)
-                                        .map(w => ({ value: w.id, label: w.name }))
-                                ]}
                             />
                         </>
                     )}
@@ -469,10 +488,11 @@ export default function WalletManager({ isOpen, onClose, onWalletChange }: Walle
                             onClick={handleFreeze}
                             className="flex-1"
                             disabled={freezingWallet?.balance !== 0 && !freezeTargetWallet}
+                            loading={freezing}
                         >
                             Congelar
                         </Button>
-                        <Button variant="secondary" onClick={() => setIsFreezeModalOpen(false)}>
+                        <Button variant="secondary" onClick={() => setIsFreezeModalOpen(false)} disabled={freezing}>
                             Cancelar
                         </Button>
                     </div>
@@ -502,7 +522,7 @@ export default function WalletManager({ isOpen, onClose, onWalletChange }: Walle
                                         {formatCurrency(wallet.balance)}
                                     </span>
                                 </div>
-                                <Button size="sm" variant="secondary" onClick={() => handleUnfreeze(wallet)}>
+                                <Button size="sm" variant="secondary" onClick={() => handleUnfreeze(wallet)} loading={unfreezing === wallet.id}>
                                     Reactivar
                                 </Button>
                             </div>

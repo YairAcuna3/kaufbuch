@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { name, parentId } = await request.json();
+    const { name, description, parentId } = await request.json();
 
     if (!name?.trim()) {
       return NextResponse.json(
@@ -113,6 +113,7 @@ export async function POST(request: NextRequest) {
     const wallet = await prisma.wallet.create({
       data: {
         name: name.trim(),
+        description: description?.trim() || null,
         userId: session.user.id,
         parentId: parentId || null,
       },
