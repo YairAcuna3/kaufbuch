@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useMemo } from "react"
 import { Card } from "@/app/components/ui/Card"
 import { Input } from "@/app/components/ui/Input"
 import { Button } from "@/app/components/ui/Button"
@@ -19,6 +19,7 @@ interface Record {
     price: number | null
     notes: string | null
     buyDate: string | null
+    createdAt?: string
     isIncome: boolean
     isGift: boolean
     tags: Tag[]
@@ -34,7 +35,8 @@ interface RecordsListProps {
 }
 
 export default function RecordsList({ isIncome, onEdit, onDelete, refreshTrigger, walletId }: RecordsListProps) {
-    const [records, setRecords] = useState<Record[]>([])
+    // Caché de todos los registros (sin filtrar por búsqueda)
+    const [allRecords, setAllRecords] = useState<Record[]>([])
     const [tags, setTags] = useState<Tag[]>([])
     const [search, setSearch] = useState("")
     const [sortBy, setSortBy] = useState("buyDate")
@@ -43,33 +45,27 @@ export default function RecordsList({ isIncome, onEdit, onDelete, refreshTrigger
     const [newTagName, setNewTagName] = useState("")
     const [currentPage, setCurrentPage] = useState(1)
     const [pageSize, setPageSize] = useState(10)
-    const [totalPages, setTotalPages] = useState(1)
-    const [total, setTotal] = useState(0)
-    const [totalBalance, setTotalBalance] = useState(0)
     const [overallBalance, setOverallBalance] = useState(0)
     const [walletBalance, setWalletBalance] = useState<number | null>(null)
     const [showBalance, setShowBalance] = useState(false)
+    const [isLoading, setIsLoading] = useState(true)
 
+    // Fetch todos los registros (sin filtro de búsqueda) - se cachean localmente
     const fetchRecords = useCallback(async () => {
+        setIsLoading(true)
         const params = new URLSearchParams()
-        if (search) params.set("search", search)
-        params.set("sortBy", sortBy)
-        params.set("sortOrder", sortOrder)
+        // NO enviamos search - filtramos localmente
         if (selectedTags.length) params.set("tags", selectedTags.join(","))
-        params.set("page", currentPage.toString())
-        params.set("pageSize", pageSize.toString())
         params.set("isIncome", isIncome.toString())
         if (walletId) params.set("walletId", walletId)
 
         const res = await fetch(`/api/records?${params}`)
         const data = await res.json()
-        setRecords(data.records)
-        setTotalPages(data.pagination.totalPages)
-        setTotal(data.pagination.total)
-        setTotalBalance(data.totalBalance)
+        setAllRecords(data.records)
         setOverallBalance(data.overallBalance)
         setWalletBalance(data.walletBalance)
-    }, [search, sortBy, sortOrder, selectedTags, currentPage, pageSize, isIncome, walletId])
+        setIsLoading(false)
+    }, [selectedTags, isIncome, walletId])
 
     const fetchTags = async () => {
         const res = await fetch("/api/tags")
@@ -82,9 +78,64 @@ export default function RecordsList({ isIncome, onEdit, onDelete, refreshTrigger
         fetchTags()
     }, [fetchRecords, refreshTrigger])
 
+    // Filtrado local por búsqueda (instantáneo)
+    const filteredRecords = useMemo(() => {
+        if (!search.trim()) return allRecords
+
+        const searchLower = search.toLowerCase()
+        return allRecords.filter(record =>
+            record.name.toLowerCase().includes(searchLower) ||
+            (record.notes && record.notes.toLowerCase().includes(searchLower))
+        )
+    }, [allRecords, search])
+
+    // Ordenamiento local (instantáneo)
+    const sortedRecords = useMemo(() => {
+        return [...filteredRecords].sort((a, b) => {
+            let comparison = 0
+
+            switch (sortBy) {
+                case "name":
+                    comparison = (a.name || "").localeCompare(b.name || "")
+                    break
+                case "price":
+                    comparison = (a.price ?? 0) - (b.price ?? 0)
+                    break
+                case "buyDate":
+                    const dateA = a.buyDate ? new Date(a.buyDate).getTime() : 0
+                    const dateB = b.buyDate ? new Date(b.buyDate).getTime() : 0
+                    comparison = dateA - dateB
+                    break
+                case "createdAt":
+                    const createdA = a.createdAt ? new Date(a.createdAt).getTime() : 0
+                    const createdB = b.createdAt ? new Date(b.createdAt).getTime() : 0
+                    comparison = createdA - createdB
+                    break
+            }
+
+            return sortOrder === "desc" ? -comparison : comparison
+        })
+    }, [filteredRecords, sortBy, sortOrder])
+
+    // Paginación local (instantánea)
+    const paginatedRecords = useMemo(() => {
+        const startIndex = (currentPage - 1) * pageSize
+        return sortedRecords.slice(startIndex, startIndex + pageSize)
+    }, [sortedRecords, currentPage, pageSize])
+
+    const totalPages = useMemo(() => Math.ceil(sortedRecords.length / pageSize), [sortedRecords.length, pageSize])
+
+    // Balance filtrado (calculado localmente)
+    const filteredBalance = useMemo(() => {
+        return filteredRecords
+            .filter(r => !r.isGift)
+            .reduce((sum, r) => sum + (r.price ?? 0), 0)
+    }, [filteredRecords])
+
+    // Reset página cuando cambia la búsqueda o filtros
     useEffect(() => {
         setCurrentPage(1)
-    }, [search, sortBy, sortOrder, selectedTags, pageSize, walletId])
+    }, [search, selectedTags, pageSize, walletId])
 
     const handleCreateTag = async () => {
         if (!newTagName.trim()) return
@@ -163,7 +214,6 @@ export default function RecordsList({ isIncome, onEdit, onDelete, refreshTrigger
             {/* Summary */}
             <div className="mb-6 p-4 bg-card border border-border rounded-xl">
                 <div className="flex flex-col gap-3">
-                    {/* Saldo total - oculto por defecto */}
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pb-3 border-b border-border sm:border-b-0 sm:pb-0">
                         <div className="flex items-center gap-2">
                             <span className="text-sm sm:text-base text-muted">Saldo total:</span>
@@ -180,15 +230,10 @@ export default function RecordsList({ isIncome, onEdit, onDelete, refreshTrigger
                                 className="text-muted hover:text-foreground transition-colors p-1"
                                 title={showBalance ? "Ocultar saldo" : "Mostrar saldo"}
                             >
-                                {showBalance ? (
-                                    <AiOutlineEyeInvisible className="w-5 h-5" />
-                                ) : (
-                                    <AiOutlineEye className="w-5 h-5" />
-                                )}
+                                {showBalance ? <AiOutlineEyeInvisible className="w-5 h-5" /> : <AiOutlineEye className="w-5 h-5" />}
                             </button>
                         </div>
 
-                        {/* Saldo de wallet seleccionada - siempre visible */}
                         {walletBalance !== null && (
                             <div className="flex items-center gap-2">
                                 <span className="text-sm sm:text-base text-muted">Wallet:</span>
@@ -199,18 +244,17 @@ export default function RecordsList({ isIncome, onEdit, onDelete, refreshTrigger
                         )}
                     </div>
 
-                    {/* Total específico del tipo - solo visible cuando hay búsqueda */}
                     {search && showBalance && (
                         <div className="flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-2 pt-2">
                             <div className="flex items-baseline gap-2">
                                 <span className="text-sm sm:text-base text-muted">
                                     {isIncome ? "Total ingresos:" : "Total gastos:"}
                                 </span>
-                                <span className={`text-lg sm:text-xl font-bold ${totalBalance >= 0 ? "text-success" : "text-danger"}`}>
-                                    {totalBalance >= 0 ? "+" : ""}{totalBalance.toFixed(2)}
+                                <span className={`text-lg sm:text-xl font-bold ${filteredBalance >= 0 ? "text-success" : "text-danger"}`}>
+                                    {filteredBalance >= 0 ? "+" : ""}{filteredBalance.toFixed(2)}
                                 </span>
                             </div>
-                            <span className="text-xs sm:text-sm text-muted">({total} registros)</span>
+                            <span className="text-xs sm:text-sm text-muted">({filteredRecords.length} registros)</span>
                         </div>
                     )}
                 </div>
@@ -218,22 +262,21 @@ export default function RecordsList({ isIncome, onEdit, onDelete, refreshTrigger
 
             {/* Records list */}
             <div className="space-y-3">
-                {records.length === 0 ? (
+                {isLoading ? (
+                    <Card className="text-center text-muted py-12">Cargando...</Card>
+                ) : paginatedRecords.length === 0 ? (
                     <Card className="text-center text-muted py-12">
-                        No hay {isIncome ? "ingresos" : "gastos"}. ¡Crea el primero!
+                        {search ? "No se encontraron resultados" : `No hay ${isIncome ? "ingresos" : "gastos"}. ¡Crea el primero!`}
                     </Card>
                 ) : (
-                    records.map((record) => (
+                    paginatedRecords.map((record) => (
                         <Card key={record.id}>
                             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                                 <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-2 flex-wrap">
                                         <h3 className="font-medium truncate">{record.name}</h3>
                                         {record.tags.map((tag) => (
-                                            <span
-                                                key={tag.id}
-                                                className="px-2 py-0.5 bg-primary-muted text-primary text-xs rounded-full"
-                                            >
+                                            <span key={tag.id} className="px-2 py-0.5 bg-primary-muted text-primary text-xs rounded-full">
                                                 {tag.name}
                                             </span>
                                         ))}
@@ -243,9 +286,7 @@ export default function RecordsList({ isIncome, onEdit, onDelete, refreshTrigger
                                             </span>
                                         )}
                                     </div>
-                                    {record.notes && (
-                                        <p className="text-sm text-muted mt-1 line-clamp-2">{record.notes}</p>
-                                    )}
+                                    {record.notes && <p className="text-sm text-muted mt-1 line-clamp-2">{record.notes}</p>}
                                     {record.buyDate && (
                                         <p className="text-xs text-muted mt-1">
                                             {isIncome ? "Fecha: " : "Compra: "}{formatDate(record.buyDate)}
@@ -253,17 +294,8 @@ export default function RecordsList({ isIncome, onEdit, onDelete, refreshTrigger
                                     )}
                                 </div>
                                 <div className="flex items-center justify-between sm:justify-end gap-3">
-                                    <span
-                                        className={`font-bold whitespace-nowrap ${record.isGift
-                                            ? "text-blue-500"
-                                            : record.price && record.price >= 0
-                                                ? "text-success"
-                                                : "text-danger"
-                                            }`}
-                                    >
-                                        {record.price !== null
-                                            ? `${record.price >= 0 ? "+" : ""}${record.price.toFixed(2)}`
-                                            : "-"}
+                                    <span className={`font-bold whitespace-nowrap ${record.isGift ? "text-blue-500" : record.price && record.price >= 0 ? "text-success" : "text-danger"}`}>
+                                        {record.price !== null ? `${record.price >= 0 ? "+" : ""}${record.price.toFixed(2)}` : "-"}
                                     </span>
                                     <div className="flex gap-1.5">
                                         <Button variant="teal" size="sm" onClick={() => onEdit(record)} title="Editar">
@@ -303,23 +335,11 @@ export default function RecordsList({ isIncome, onEdit, onDelete, refreshTrigger
                 </div>
                 {totalPages > 1 && (
                     <div className="flex items-center gap-2">
-                        <Button
-                            variant="secondary"
-                            size="sm"
-                            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                            disabled={currentPage === 1}
-                        >
+                        <Button variant="secondary" size="sm" onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1}>
                             Anterior
                         </Button>
-                        <span className="text-sm text-muted px-4">
-                            Página {currentPage} de {totalPages}
-                        </span>
-                        <Button
-                            variant="secondary"
-                            size="sm"
-                            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                            disabled={currentPage === totalPages}
-                        >
+                        <span className="text-sm text-muted px-4">Página {currentPage} de {totalPages}</span>
+                        <Button variant="secondary" size="sm" onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}>
                             Siguiente
                         </Button>
                     </div>

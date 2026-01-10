@@ -10,16 +10,9 @@ export async function GET(req: Request) {
 
   const { searchParams } = new URL(req.url);
   const search = searchParams.get("search") || "";
-  const sortBy = searchParams.get("sortBy") || "createdAt";
-  const sortOrder = searchParams.get("sortOrder") || "desc";
   const tagIds = searchParams.get("tags")?.split(",").filter(Boolean) || [];
   const isIncomeParam = searchParams.get("isIncome");
   const walletId = searchParams.get("walletId");
-  const page = parseInt(searchParams.get("page") || "1");
-  const pageSizeParam = parseInt(searchParams.get("pageSize") || "10");
-  const pageSize = [10, 20, 30, 50, 100].includes(pageSizeParam)
-    ? pageSizeParam
-    : 10;
 
   // Obtener wallets del usuario para filtrar
   const userWallets = await prisma.wallet.findMany({
@@ -47,18 +40,6 @@ export async function GET(req: Request) {
     where.isIncome = isIncomeParam === "true";
   }
 
-  const orderBy = (() => {
-    if (sortBy === "buyDate") {
-      return [{ buyDate: { sort: sortOrder, nulls: "last" } }] as any;
-    } else if (sortBy === "name") {
-      return { name: sortOrder };
-    } else if (sortBy === "price") {
-      return { price: sortOrder };
-    } else {
-      return { createdAt: sortOrder };
-    }
-  })();
-
   // Calcular balance general (todas las wallets activas del usuario)
   const activeWallets = await prisma.wallet.findMany({
     where: { userId: session.user.id, isFrozen: false },
@@ -75,12 +56,11 @@ export async function GET(req: Request) {
     walletBalanceResult,
     walletAdjustmentsResult,
   ] = await Promise.all([
+    // Traer todos los registros sin paginación del servidor (ordenamiento/paginación en cliente)
     prisma.record.findMany({
       where,
       include: { tags: true, wallet: { select: { id: true, name: true } } },
-      orderBy,
-      skip: (page - 1) * pageSize,
-      take: pageSize,
+      orderBy: { createdAt: "desc" },
     }),
     prisma.record.count({ where }),
     prisma.record.aggregate({
@@ -116,10 +96,7 @@ export async function GET(req: Request) {
   return NextResponse.json({
     records,
     pagination: {
-      page,
-      pageSize,
       total,
-      totalPages: Math.ceil(total / pageSize),
     },
     totalBalance: balanceResult._sum.price || 0,
     overallBalance: (overallBalanceResult._sum.price || 0) + adjustmentsTotal,

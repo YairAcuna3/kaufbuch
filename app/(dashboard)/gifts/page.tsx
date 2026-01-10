@@ -7,6 +7,8 @@ import { Input } from "@/app/components/ui/Input"
 import { Textarea } from "@/app/components/ui/Textarea"
 import { Button } from "@/app/components/ui/Button"
 import { Modal } from "@/app/components/ui/Modal"
+import { Switch } from "@/app/components/ui/Switch"
+import { WalletSelect } from "@/app/components/ui/WalletSelect"
 
 interface Group {
     id: string
@@ -24,12 +26,24 @@ interface Gift {
     group: Group | null
 }
 
+interface Wallet {
+    id: string
+    name: string
+    isDefault: boolean
+    balance: number
+    parentId: string | null
+    children?: Wallet[]
+}
+
 export default function GiftsPage() {
     const [gifts, setGifts] = useState<Gift[]>([])
     const [groups, setGroups] = useState<Group[]>([])
+    const [wallets, setWallets] = useState<Wallet[]>([])
     const [isModalOpen, setIsModalOpen] = useState(false)
     const [isGroupModalOpen, setIsGroupModalOpen] = useState(false)
+    const [isPurchaseModalOpen, setIsPurchaseModalOpen] = useState(false)
     const [editingGift, setEditingGift] = useState<Gift | null>(null)
+    const [purchasingGift, setPurchasingGift] = useState<Gift | null>(null)
 
     const [formName, setFormName] = useState("")
     const [formPrice, setFormPrice] = useState("")
@@ -37,6 +51,18 @@ export default function GiftsPage() {
     const [formNotes, setFormNotes] = useState("")
     const [formGroupId, setFormGroupId] = useState<string | null>(null)
     const [newGroupName, setNewGroupName] = useState("")
+    const [editingGroup, setEditingGroup] = useState<Group | null>(null)
+    const [editGroupName, setEditGroupName] = useState("")
+    const [isReorderGroupsModalOpen, setIsReorderGroupsModalOpen] = useState(false)
+    const [reorderGroups, setReorderGroups] = useState<Group[]>([])
+
+    // Purchase form state
+    const [purchasePrice, setPurchasePrice] = useState("")
+    const [purchaseWalletId, setPurchaseWalletId] = useState("")
+    const [purchaseDate, setPurchaseDate] = useState("")
+    const [purchaseNotes, setPurchaseNotes] = useState("")
+    const [purchaseIsIncome, setPurchaseIsIncome] = useState(false)
+    const [purchaseIsGift, setPurchaseIsGift] = useState(false)
 
     const fetchData = async () => {
         const res = await fetch("/api/gifts")
@@ -45,8 +71,19 @@ export default function GiftsPage() {
         setGroups(data.groups)
     }
 
+    const fetchWallets = async () => {
+        const res = await fetch("/api/wallets")
+        const data = await res.json()
+        setWallets(data)
+        const defaultWallet = data.find((w: Wallet) => w.isDefault)
+        if (defaultWallet) {
+            setPurchaseWalletId(defaultWallet.id)
+        }
+    }
+
     useEffect(() => {
         fetchData()
+        fetchWallets()
     }, [])
 
     const openModal = (gift?: Gift) => {
@@ -108,6 +145,46 @@ export default function GiftsPage() {
         fetchData()
     }
 
+    const openPurchaseModal = (gift: Gift) => {
+        setPurchasingGift(gift)
+        setPurchasePrice(gift.price?.toString() || "")
+        setPurchaseDate(new Date().toISOString().split("T")[0])
+        setPurchaseNotes(gift.notes || "")
+        setPurchaseIsIncome(false)
+        setPurchaseIsGift(false)
+        // Set default wallet
+        const defaultWallet = wallets.find((w: Wallet) => w.isDefault)
+        if (defaultWallet) {
+            setPurchaseWalletId(defaultWallet.id)
+        }
+        setIsPurchaseModalOpen(true)
+    }
+
+    const closePurchaseModal = () => {
+        setIsPurchaseModalOpen(false)
+        setPurchasingGift(null)
+    }
+
+    const handlePurchase = async () => {
+        if (!purchasingGift) return
+
+        await fetch(`/api/gifts/${purchasingGift.id}/purchase`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                walletId: purchaseWalletId || null,
+                price: purchasePrice ? parseFloat(purchasePrice) : null,
+                buyDate: purchaseDate || null,
+                notes: purchaseNotes || null,
+                isIncome: purchaseIsIncome,
+                isGift: purchaseIsGift,
+            }),
+        })
+
+        closePurchaseModal()
+        fetchData()
+    }
+
     const handleCreateGroup = async () => {
         if (!newGroupName.trim()) return
         await fetch("/api/groups", {
@@ -124,6 +201,55 @@ export default function GiftsPage() {
         if (!confirm("¿Eliminar este grupo?")) return
         await fetch(`/api/groups/${id}`, { method: "DELETE" })
         fetchData()
+    }
+
+    const openEditGroup = (group: Group) => {
+        setEditingGroup(group)
+        setEditGroupName(group.name)
+    }
+
+    const handleEditGroup = async () => {
+        if (!editingGroup || !editGroupName.trim()) return
+        await fetch(`/api/groups/${editingGroup.id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name: editGroupName }),
+        })
+        setEditingGroup(null)
+        setEditGroupName("")
+        fetchData()
+    }
+
+    const openReorderGroupsModal = () => {
+        setReorderGroups([...groups])
+        setIsReorderGroupsModalOpen(true)
+    }
+
+    const onGroupDragEnd = async (result: DropResult) => {
+        if (!result.destination) return
+        const items = Array.from(reorderGroups)
+        const [reorderedItem] = items.splice(result.source.index, 1)
+        items.splice(result.destination.index, 0, reorderedItem)
+        setReorderGroups(items)
+    }
+
+    const handleSaveGroupOrder = async () => {
+        const itemsToUpdate = reorderGroups.map((group, index) => ({
+            id: group.id,
+            order: index,
+        }))
+
+        try {
+            await fetch("/api/groups/reorder", {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ items: itemsToUpdate }),
+            })
+            setIsReorderGroupsModalOpen(false)
+            fetchData()
+        } catch (error) {
+            console.error("Error al reordenar grupos:", error)
+        }
     }
 
     const onDragEnd = async (result: DropResult) => {
@@ -208,6 +334,9 @@ export default function GiftsPage() {
                     <span className="text-lg font-semibold text-primary">Total: S/ {totalPrice.toFixed(2)}</span>
                 </div>
                 <div className="flex gap-2">
+                    <Button variant="secondary" onClick={openReorderGroupsModal}>
+                        Ordenar grupos
+                    </Button>
                     <Button variant="secondary" onClick={() => setIsGroupModalOpen(true)}>
                         + Grupo
                     </Button>
@@ -238,7 +367,7 @@ export default function GiftsPage() {
                                                 {...provided.dragHandleProps}
                                                 className={`mb-2 ${snapshot.isDragging ? "opacity-80" : ""}`}
                                             >
-                                                <GiftCard gift={gift} onEdit={openModal} onDelete={handleDelete} />
+                                                <GiftCard gift={gift} onEdit={openModal} onDelete={handleDelete} onPurchase={openPurchaseModal} />
                                             </div>
                                         )}
                                     </Draggable>
@@ -254,7 +383,14 @@ export default function GiftsPage() {
                     return (
                         <div key={group.id} className="mb-6">
                             <div className="flex items-center justify-between mb-3">
-                                <h2 className="text-lg font-semibold">{group.name}</h2>
+                                <div className="flex items-center gap-2">
+                                    <h2 className="text-lg font-semibold">{group.name}</h2>
+                                    <Button variant="ghost" size="sm" onClick={() => openEditGroup(group)} title="Editar grupo">
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                        </svg>
+                                    </Button>
+                                </div>
                                 <Button variant="ghost" size="sm" onClick={() => handleDeleteGroup(group.id)}>
                                     Eliminar grupo
                                 </Button>
@@ -279,7 +415,7 @@ export default function GiftsPage() {
                                                         {...provided.dragHandleProps}
                                                         className={`mb-2 ${snapshot.isDragging ? "opacity-80" : ""}`}
                                                     >
-                                                        <GiftCard gift={gift} onEdit={openModal} onDelete={handleDelete} />
+                                                        <GiftCard gift={gift} onEdit={openModal} onDelete={handleDelete} onPurchase={openPurchaseModal} />
                                                     </div>
                                                 )}
                                             </Draggable>
@@ -328,11 +464,121 @@ export default function GiftsPage() {
                     </div>
                 </div>
             </Modal>
+
+            <Modal isOpen={!!editingGroup} onClose={() => setEditingGroup(null)} title="Editar grupo">
+                <div className="space-y-4">
+                    <Input label="Nombre del grupo" value={editGroupName} onChange={(e) => setEditGroupName(e.target.value)} />
+                    <div className="flex gap-3">
+                        <Button onClick={handleEditGroup} className="flex-1">Guardar</Button>
+                        <Button variant="secondary" onClick={() => setEditingGroup(null)}>Cancelar</Button>
+                    </div>
+                </div>
+            </Modal>
+
+            {/* Purchase Modal */}
+            <Modal isOpen={isPurchaseModalOpen} onClose={closePurchaseModal} title="Marcar como comprado">
+                <div className="space-y-4">
+                    {purchasingGift && (
+                        <p className="text-muted">
+                            ¿Marcar &quot;{purchasingGift.name}&quot;{purchasingGift.toWho ? ` (para ${purchasingGift.toWho})` : ""} como comprado?
+                        </p>
+                    )}
+                    <Input
+                        label="Precio final"
+                        type="number"
+                        step="0.01"
+                        value={purchasePrice}
+                        onChange={(e) => setPurchasePrice(e.target.value)}
+                        placeholder="Precio de compra"
+                    />
+                    <Input
+                        label="Fecha de compra"
+                        type="date"
+                        value={purchaseDate}
+                        onChange={(e) => setPurchaseDate(e.target.value)}
+                    />
+                    {wallets.length > 0 && (
+                        <WalletSelect
+                            label="Wallet"
+                            value={purchaseWalletId}
+                            onChange={setPurchaseWalletId}
+                            wallets={wallets}
+                            showBalance={true}
+                        />
+                    )}
+                    <Textarea
+                        label="Notas"
+                        value={purchaseNotes}
+                        onChange={(e) => setPurchaseNotes(e.target.value)}
+                        rows={3}
+                    />
+                    <div>
+                        <label className="block text-sm font-medium text-foreground mb-2">Tipo</label>
+                        <Switch
+                            checked={purchaseIsIncome}
+                            onChange={setPurchaseIsIncome}
+                            labelOff="Gasto"
+                            labelOn="Ingreso"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-foreground mb-2">¿Es regalo?</label>
+                        <Switch
+                            checked={purchaseIsGift}
+                            onChange={setPurchaseIsGift}
+                            labelOff="No"
+                            labelOn="Sí"
+                        />
+                    </div>
+                    <div className="flex gap-3 pt-4">
+                        <Button onClick={handlePurchase} className="flex-1">Comprado</Button>
+                        <Button variant="secondary" onClick={closePurchaseModal}>Cancelar</Button>
+                    </div>
+                </div>
+            </Modal>
+
+            {/* Reorder Groups Modal */}
+            <Modal isOpen={isReorderGroupsModalOpen} onClose={() => setIsReorderGroupsModalOpen(false)} title="Ordenar grupos">
+                <div className="space-y-4">
+                    {reorderGroups.length === 0 ? (
+                        <p className="text-muted text-center py-4">No hay grupos para ordenar</p>
+                    ) : (
+                        <DragDropContext onDragEnd={onGroupDragEnd}>
+                            <Droppable droppableId="groups-reorder">
+                                {(provided) => (
+                                    <div ref={provided.innerRef} {...provided.droppableProps} className="space-y-2">
+                                        {reorderGroups.map((group, index) => (
+                                            <Draggable key={group.id} draggableId={`group-${group.id}`} index={index}>
+                                                {(provided, snapshot) => (
+                                                    <div
+                                                        ref={provided.innerRef}
+                                                        {...provided.draggableProps}
+                                                        {...provided.dragHandleProps}
+                                                        className={`p-3 rounded-lg border border-border bg-card flex items-center gap-2 cursor-grab active:cursor-grabbing ${snapshot.isDragging ? "opacity-80 shadow-lg" : ""}`}
+                                                    >
+                                                        <span className="text-muted">⋮⋮</span>
+                                                        <span className="font-medium">{group.name}</span>
+                                                    </div>
+                                                )}
+                                            </Draggable>
+                                        ))}
+                                        {provided.placeholder}
+                                    </div>
+                                )}
+                            </Droppable>
+                        </DragDropContext>
+                    )}
+                    <div className="flex gap-3 pt-4">
+                        <Button onClick={handleSaveGroupOrder} className="flex-1" disabled={reorderGroups.length === 0}>Guardar</Button>
+                        <Button variant="secondary" onClick={() => setIsReorderGroupsModalOpen(false)}>Cancelar</Button>
+                    </div>
+                </div>
+            </Modal>
         </div>
     )
 }
 
-function GiftCard({ gift, onEdit, onDelete }: { gift: Gift; onEdit: (g: Gift) => void; onDelete: (id: string) => void }) {
+function GiftCard({ gift, onEdit, onDelete, onPurchase }: { gift: Gift; onEdit: (g: Gift) => void; onDelete: (id: string) => void; onPurchase: (g: Gift) => void }) {
     return (
         <Card className="cursor-grab active:cursor-grabbing">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -347,6 +593,11 @@ function GiftCard({ gift, onEdit, onDelete }: { gift: Gift; onEdit: (g: Gift) =>
                 <div className="flex items-center justify-between sm:justify-end gap-3 ml-5 sm:ml-0">
                     {gift.price !== null && <span className="font-bold text-primary whitespace-nowrap">S/ {gift.price.toFixed(2)}</span>}
                     <div className="flex gap-1.5">
+                        <Button variant="secondary" size="sm" onClick={() => onPurchase(gift)} title="Marcar como comprado">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                            </svg>
+                        </Button>
                         <Button variant="teal" size="sm" onClick={() => onEdit(gift)} title="Editar">
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
